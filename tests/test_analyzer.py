@@ -110,3 +110,38 @@ def test_nested_loop_detector_unit():
 def test_no_false_nested_loop_for_arrow():
     code = "setInterval(() => { run(); }, 100);"
     assert not detect_nested_loops_clike(mask_code(code, "javascript"))
+
+
+def test_js_fetch_without_abort_or_timeout(tmp_path):
+    ids, _ = _rule_ids(tmp_path, "a.js", "fetch('/api/data');\n")
+    assert "GC023" in ids
+
+
+def test_js_fetch_with_abort_signal_is_clean(tmp_path):
+    ids, _ = _rule_ids(tmp_path, "a.js", "fetch('/api/data', { signal: controller.signal });\n")
+    assert "GC023" not in ids
+
+
+def test_update_delete_without_where(tmp_path):
+    ids, _ = _rule_ids(tmp_path, "q.sql", "UPDATE users SET active = 0;\nDELETE FROM logs;\n")
+    assert "GC032" in ids
+
+
+def test_unpinned_dependency(tmp_path):
+    ids, _ = _rule_ids(tmp_path, "requirements.txt", "flask\nrequests>=2\n")
+    assert "GC052" in ids
+
+
+def test_package_json_unpinned_dependency_only_in_dependency_sections(tmp_path):
+    pkg = '''{
+      "name": "x",
+      "version": "1.0.0",
+      "dependencies": {
+        "lodash": "*",
+        "flask": "latest"
+      }
+    }
+'''
+    ids, result = _rule_ids(tmp_path, "package.json", pkg)
+    assert "GC052" in ids
+    assert sum(1 for v in result.violations if v.rule_id == "GC052") == 2

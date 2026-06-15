@@ -12,6 +12,7 @@ ogni file ed esegue tre famiglie di rilevatori:
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -569,7 +570,7 @@ class Analyzer:
 
     # ------------------------------------------------------------------ #
     def _scan_dependencies(self, root: str, result: AnalysisResult) -> None:
-        if "GC051" not in self.enabled_ids:
+        if not ({"GC051", "GC052"} & self.enabled_ids):
             return
         # requirements*.txt
         for fname in os.listdir(root) if os.path.isdir(root) else []:
@@ -590,7 +591,7 @@ class Analyzer:
             return
         for idx, line in enumerate(lines):
             name = re.split(r"[=<>!~\[ ;#]", line.strip(), 1)[0].strip().lower()
-            if name in HEAVY_DEPENDENCIES:
+            if "GC051" in self.enabled_ids and name in HEAVY_DEPENDENCIES:
                 result.violations.append(
                     Violation(
                         rule_id="GC051",
@@ -600,6 +601,19 @@ class Analyzer:
                         message=f"Dipendenza pesante '{name}': {HEAVY_DEPENDENCIES[name]}.",
                     )
                 )
+            stripped = line.strip()
+            if "GC052" in self.enabled_ids and stripped and not stripped.startswith("#"):
+                has_pin = re.search(r"(==|~=|>=|<=|>|<|===)", stripped)
+                if name and not has_pin:
+                    result.violations.append(
+                        Violation(
+                            rule_id="GC052",
+                            path=rel,
+                            line=idx + 1,
+                            snippet=stripped[:200],
+                            message=f"Dipendenza '{name}' senza vincolo di versione.",
+                        )
+                    )
 
     def _scan_package_json(self, fpath: str, rel: str, result: AnalysisResult) -> None:
         try:
@@ -607,22 +621,55 @@ class Analyzer:
                 text = fh.read()
         except OSError:
             return
+        try:
+            manifest = json.loads(text)
+        except json.JSONDecodeError:
+            return
+
         lines = text.splitlines()
-        for idx, line in enumerate(lines):
-            m = re.match(r'\s*"([^"]+)"\s*:', line)
-            if not m:
+        dependency_sections = (
+            "dependencies",
+            "devDependencies",
+            "peerDependencies",
+            "optionalDependencies",
+        )
+        for section in dependency_sections:
+            deps = manifest.get(section)
+            if not isinstance(deps, dict):
                 continue
-            name = m.group(1).lower()
-            if name in HEAVY_DEPENDENCIES:
-                result.violations.append(
-                    Violation(
-                        rule_id="GC051",
-                        path=rel,
-                        line=idx + 1,
-                        snippet=line.strip()[:200],
-                        message=f"Dipendenza pesante '{name}': {HEAVY_DEPENDENCIES[name]}.",
+            for name, raw_version in deps.items():
+                dep_name = str(name).lower()
+                version = str(raw_version).strip().lower()
+                line_no, snippet = _find_manifest_dependency_line(lines, name)
+                if "GC051" in self.enabled_ids and dep_name in HEAVY_DEPENDENCIES:
+                    result.violations.append(
+                        Violation(
+                            rule_id="GC051",
+                            path=rel,
+                            line=line_no,
+                            snippet=snippet[:200],
+                            message=f"Dipendenza pesante '{dep_name}': {HEAVY_DEPENDENCIES[dep_name]}.",
+                        )
                     )
-                )
+                if "GC052" in self.enabled_ids:
+                    if version in {"*", "x", "latest"} or version.endswith(".x"):
+                        result.violations.append(
+                            Violation(
+                                rule_id="GC052",
+                                path=rel,
+                                line=line_no,
+                                snippet=snippet[:200],
+                                message=f"Dipendenza '{dep_name}' con versione non vincolata ({version}).",
+                            )
+                        )
+
+
+def _find_manifest_dependency_line(lines: List[str], name: str) -> Tuple[int, str]:
+    pattern = re.compile(r'\s*"' + re.escape(str(name)) + r'"\s*:')
+    for idx, line in enumerate(lines):
+        if pattern.match(line):
+            return idx + 1, line.strip()
+    return 0, str(name)
 
 
 def _human_size(num: int) -> str:
