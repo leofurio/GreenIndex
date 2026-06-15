@@ -80,3 +80,20 @@ def test_healthz(hosted_client):
     j = hosted_client.get("/healthz").get_json()
     assert j["status"] == "ok"
     assert j["hosted"] is True
+
+
+def test_rules_page_is_linked_from_home(hosted_client):
+    html = hosted_client.get("/").data
+    assert b'href="/rules"' in html
+    assert b"Regole" in html
+
+
+def test_rules_page_lists_rules_and_calculation(hosted_client):
+    r = hosted_client.get("/rules")
+    assert r.status_code == 200
+    assert "Regole applicate da GreenIndex".encode() in r.data
+    assert b"GC023" in r.data
+    assert b"GC032" in r.data
+    assert b"GC052" in r.data
+    assert b"kWh/anno" in r.data
+    assert "CO₂e".encode() in r.data

@@ -219,6 +219,24 @@ DEFAULT_RULES: List[Rule] = [
         ),
         remediation="Imposta sempre un timeout esplicito sulle chiamate di rete.",
     ),
+    Rule(
+        id="GC023",
+        name="Richiesta HTTP JavaScript senza timeout/abort",
+        category="network",
+        severity=SEV_MINOR,
+        detector="regex",
+        languages=("javascript", "typescript"),
+        pattern=r"\b(fetch|axios\.(get|post|put|delete|patch|request))\s*\(",
+        require_absent=r"(timeout|signal|AbortController)",
+        description=(
+            "Chiamate HTTP JavaScript senza timeout o AbortController possono "
+            "restare appese e trattenere risorse lato client/server."
+        ),
+        remediation=(
+            "Configura un timeout esplicito o passa un AbortController/signal "
+            "alla richiesta."
+        ),
+    ),
     # ------------------------------ DATA ---------------------------------- #
     Rule(
         id="GC030",
@@ -251,6 +269,22 @@ DEFAULT_RULES: List[Rule] = [
             "memoria, specialmente su dataset grandi."
         ),
         remediation="Aggiungi clausole WHERE/LIMIT e indici appropriati.",
+    ),
+    Rule(
+        id="GC032",
+        name="UPDATE/DELETE senza WHERE",
+        category="data",
+        severity=SEV_MAJOR,
+        detector="regex",
+        languages=("sql", "python", "javascript", "typescript", "java", "php",
+                   "ruby", "go", "csharp", "c", "cpp", "kotlin", "scala", "rust"),
+        pattern=r"\b(update\s+\w+\s+set|delete\s+from\s+\w+)\b(?![^;\n]*(\bwhere\b|\blimit\b))",
+        flags=re.IGNORECASE,
+        description=(
+            "UPDATE o DELETE non filtrati possono modificare/scansionare intere "
+            "tabelle, generando I/O elevato e rischi operativi."
+        ),
+        remediation="Aggiungi WHERE/LIMIT e verifica che esistano indici adeguati.",
     ),
     # -------------------------- OBSERVABILITY ----------------------------- #
     Rule(
@@ -308,6 +342,21 @@ DEFAULT_RULES: List[Rule] = [
         remediation=(
             "Verifica se serve l'intera libreria o se esiste un'alternativa "
             "più leggera o un modulo della standard library."
+        ),
+    ),
+    Rule(
+        id="GC052",
+        name="Versione dipendenza non vincolata",
+        category="dependencies",
+        severity=SEV_LOW,
+        detector="dependency",
+        description=(
+            "Dipendenze senza vincolo o con wildcard/latest rendono le build "
+            "meno riproducibili e possono causare download/ricostruzioni inutili."
+        ),
+        remediation=(
+            "Fissa una versione o un range compatibile e aggiorna in modo "
+            "controllato con lockfile."
         ),
     ),
     # ----------------------------- ENERGY --------------------------------- #

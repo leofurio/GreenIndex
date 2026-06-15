@@ -24,7 +24,12 @@ from typing import Iterator, Optional, Tuple
 
 from ..analyzer import Analyzer
 from ..report import build_context, register_filters, to_json_dict
-from ..scoring import compute_green_index
+from ..rules import CATEGORIES, DEFAULT_RULES, SEVERITY_LABELS
+from ..scoring import (
+    ILLUSTRATIVE_KG_CO2_PER_KWH,
+    ILLUSTRATIVE_KWH_PER_POINT,
+    compute_green_index,
+)
 from .fetch import FetchError, fetch_github_repo, parse_github_target
 
 # Linguaggi selezionabili per l'analisi di uno snippet.
@@ -152,6 +157,22 @@ def create_app(config: Optional[dict] = None):
         except Exception as exc:  # noqa: BLE001
             return jsonify({"error": str(exc)}), 400
         return jsonify(to_json_dict(index, result, label))
+
+
+    @app.route("/rules")
+    def rules_page():
+        grouped = []
+        for cat_id, meta in CATEGORIES.items():
+            rules = [rule for rule in DEFAULT_RULES if rule.category == cat_id]
+            if rules:
+                grouped.append({"id": cat_id, "meta": meta, "rules": rules})
+        return render_template(
+            "rules.html",
+            grouped_rules=grouped,
+            severity_labels=SEVERITY_LABELS,
+            kwh_per_point=ILLUSTRATIVE_KWH_PER_POINT,
+            kg_co2_per_kwh=ILLUSTRATIVE_KG_CO2_PER_KWH,
+        )
 
     @app.route("/healthz")
     def healthz():

@@ -146,12 +146,12 @@ importa questo repository e fai *Deploy*: non serve configurare nulla.
 
 | File | Ruolo |
 |---|---|
-| `api/index.py` | Entrypoint serverless: espone l'app WSGI Flask in modalità hosted. |
-| `vercel.json` | Instrada tutte le richieste alla funzione e include il pacchetto. |
+| `app.py` | Entrypoint Flask rilevato automaticamente da Vercel: espone l'app WSGI in modalità hosted. |
+| `api/index.py` | Entrypoint serverless compatibile con configurazioni Vercel/API legacy. |
 | `requirements.txt` | Dipendenze installate da Vercel (Flask, Jinja2). |
 
 Niente binario `git` né accesso al filesystem: il repository GitHub viene
-scaricato come tarball via HTTPS (`api/index.py` → `greenindex.web.fetch`).
+scaricato come tarball via HTTPS (`app.py` → `greenindex.web.fetch`).
 
 **Variabili d'ambiente (opzionali):**
 
@@ -166,17 +166,34 @@ usa la CLI in locale.
 
 ---
 
-## Come viene calcolato il KPI
+## Come vengono calcolati KPI, kWh e CO₂e
 
-Il punteggio parte da 100 e diminuisce in funzione della **densità di penalità**
-(somma dei pesi di gravità ogni 1000 righe di codice), così che repository
-grandi e piccoli siano confrontabili:
+GreenIndex è un indicatore statico: non misura i consumi reali in produzione,
+ma stima la qualità energetica del codice a partire da anti-pattern noti. Ogni
+violazione rilevata aggiunge una penalità pari alla gravità della regola.
+
+**Gravità e pesi usati nel calcolo:**
+
+| Gravità | Peso | Significato |
+|---|---:|---|
+| info | 1 | Segnale lieve, utile soprattutto per pulizia e riproducibilità. |
+| minore | 2 | Inefficienza locale o rischio contenuto. |
+| media | 3 | Pattern che può crescere male su input o traffico reali. |
+| alta | 4 | Spreco significativo di CPU, I/O, rete o storage. |
+| critica | 5 | Pattern ad altissimo consumo o potenzialmente abusivo. |
+
+Formula del KPI:
 
 ```
-penalità   = Σ gravità(violazione)        # gravità da 1 (info) a 5 (critica)
+penalità   = Σ peso_gravità(violazione)
+KLOC       = righe_di_codice / 1000
 densità    = penalità / max(KLOC, 0.1)
-GreenIndex = clamp(100 − k · densità, 0, 100)
+GreenIndex = clamp(100 − k · densità, 0, 100)   # k default = 1.0
 ```
+
+La densità normalizza la penalità sui KLOC, così un repository piccolo e uno
+grande restano confrontabili. Il minimo `0.1 KLOC` evita che snippet o progetti
+minuscoli producano densità infinite o sproporzionate.
 
 Classi di efficienza:
 
@@ -190,37 +207,67 @@ Classi di efficienza:
 | **F** | 25–44 | Scarso |
 | **G** | 0–24 | Critico |
 
-Il report mostra anche una **stima illustrativa** in kWh/anno e kg CO₂e/anno:
-è un valore puramente indicativo (coefficiente fisso) per rendere tangibile
-l'ordine di grandezza, **non** una misura reale di emissioni.
+### Stima illustrativa kWh/anno e kg CO₂e/anno
+
+Il report mostra anche una stima in **kWh/anno** e **kg CO₂e/anno**. È una
+stima didattica e comparativa, non una misura scientifica delle emissioni reali:
+non usa dati di runtime, traffico, hardware, regione cloud o mix energetico
+effettivo. Serve a trasformare le penalità in un ordine di grandezza leggibile.
+
+Coefficienti correnti:
+
+```
+kWh_anno_indicativi = penalità · 0.05
+kg_CO2e_anno        = kWh_anno_indicativi · 0.30
+```
+
+Esempio: 40 punti di penalità producono `40 · 0.05 = 2.0 kWh/anno` indicativi e
+`2.0 · 0.30 = 0.6 kg CO₂e/anno` indicativi. Per misure reali servono
+strumentazione runtime, metriche di carico, profili hardware e fattori di
+emissione della regione in cui gira il software.
 
 ---
 
 ## Regole di consumo tecnologico
 
-| ID | Categoria | Regola | Gravità |
-|---|---|---|:---:|
-| GC001 | Calcolo / CPU | Cicli annidati | media |
-| GC002 | Calcolo / CPU | Concatenazione di stringhe in un ciclo | minore |
-| GC003 | Calcolo / CPU | Busy-wait / polling attivo | alta |
-| GC010 | Memoria | Lettura dell'intero file in memoria | minore |
-| GC011 | Memoria | Risorsa file non chiusa (manca `with`) | media |
-| GC020 | Rete & I/O | Chiamata di rete dentro un ciclo | alta |
-| GC021 | Rete & I/O | Query al DB dentro un ciclo (N+1) | alta |
-| GC022 | Rete & I/O | Richiesta HTTP senza timeout | minore |
-| GC030 | Dati & Storage | `SELECT *` (query non selettiva) | minore |
-| GC031 | Dati & Storage | Query senza `WHERE`/`LIMIT` | minore |
-| GC040 | Osservabilità | `print`/`console.log` di debug | info |
-| GC041 | Osservabilità | Logging in livello DEBUG | info |
-| GC050 | Dipendenze | Import wildcard (`import *`) | info |
-| GC051 | Dipendenze | Dipendenza pesante | minore |
-| GC060 | Energia & Runtime | Modalità debug abilitata | media |
-| GC061 | Energia & Runtime | Animazione CSS infinita | minore |
-| GC062 | Energia & Runtime | Pattern di cryptomining | critica |
-| GC063 | Energia & Runtime | `setInterval` ad alta frequenza | minore |
-| GC070 | Asset | Asset di grandi dimensioni non ottimizzato | minore |
-| GC080 | Infrastruttura | Immagine Docker con tag non fissato (`:latest`) | info |
-| GC081 | Infrastruttura | Dockerfile senza multi-stage build | info |
+Le regole sono raggruppate per categoria d'impatto:
+
+- **Calcolo / CPU**: complessità evitabile, polling e lavoro ripetuto.
+- **Memoria**: caricamenti completi e risorse non chiuse.
+- **Rete & I/O**: chiamate remote non governate, N+1 e richieste senza timeout.
+- **Dati & Storage**: query non selettive o distruttive senza filtri.
+- **Osservabilità**: log e debug che generano I/O o storage inutile.
+- **Dipendenze**: librerie pesanti, wildcard import e versioni non riproducibili.
+- **Energia & Runtime**: debug, animazioni/timer continui e pattern abusivi.
+- **Asset**: immagini/media troppo grandi.
+- **Infrastruttura**: immagini Docker non fissate o troppo pesanti.
+
+| ID | Categoria | Regola | Gravità | Cosa intercetta |
+|---|---|---|:---:|---|
+| GC001 | Calcolo / CPU | Cicli annidati | media | Complessità O(n²) o peggiore su Python e linguaggi C-like. |
+| GC002 | Calcolo / CPU | Concatenazione di stringhe in un ciclo | minore | `+=` su stringhe dentro loop Python. |
+| GC003 | Calcolo / CPU | Busy-wait / polling attivo | alta | `while True` con `sleep`, preferibile con eventi/queue. |
+| GC010 | Memoria | Lettura dell'intero file in memoria | minore | `read()`, `readlines()`, `readFileSync`, `file_get_contents`. |
+| GC011 | Memoria | Risorsa file non chiusa | media | `open()` Python senza context manager `with`. |
+| GC020 | Rete & I/O | Chiamata di rete dentro un ciclo | alta | HTTP ripetuto in loop Python. |
+| GC021 | Rete & I/O | Query al DB dentro un ciclo (N+1) | alta | Query/ORM/fetch ripetuti per elemento. |
+| GC022 | Rete & I/O | Richiesta HTTP Python senza timeout | minore | `requests.*(...)` senza `timeout`. |
+| GC023 | Rete & I/O | Richiesta HTTP JavaScript senza timeout/abort | minore | `fetch`/`axios` senza `timeout`, `signal` o `AbortController`. |
+| GC030 | Dati & Storage | `SELECT *` | minore | Query che trasferiscono colonne non necessarie. |
+| GC031 | Dati & Storage | Query senza `WHERE`/`LIMIT` | minore | Letture potenzialmente full-scan. |
+| GC032 | Dati & Storage | `UPDATE`/`DELETE` senza `WHERE` | alta | Scritture/cancellazioni non filtrate o full-scan. |
+| GC040 | Osservabilità | `print`/`console.log` di debug | info | Debug lasciato nel codice applicativo. |
+| GC041 | Osservabilità | Logging in livello DEBUG | info | `logger.debug`/`logging.debug` persistenti. |
+| GC050 | Dipendenze | Import wildcard (`import *`) | info | Import Python non espliciti. |
+| GC051 | Dipendenze | Dipendenza pesante | minore | Librerie con footprint elevato quando rilevate nei manifest. |
+| GC052 | Dipendenze | Versione dipendenza non vincolata | info | Dipendenze senza vincolo o con `*`/`latest`/`x`. |
+| GC060 | Energia & Runtime | Modalità debug abilitata | media | Flag `debug`/`DEBUG` attivi in config o codice. |
+| GC061 | Energia & Runtime | Animazione CSS infinita | minore | `animation: ... infinite`. |
+| GC062 | Energia & Runtime | Pattern di cryptomining | critica | Script/keyword di mining in contesto d'uso. |
+| GC063 | Energia & Runtime | `setInterval` ad alta frequenza | minore | Timer JavaScript sotto 100 ms. |
+| GC070 | Asset | Asset di grandi dimensioni non ottimizzato | minore | Immagini >500 KB o media/archivi >2 MB. |
+| GC080 | Infrastruttura | Immagine Docker con tag non fissato | info | `FROM image` senza tag o con `:latest`. |
+| GC081 | Infrastruttura | Dockerfile senza multi-stage build | info | Immagini finali che includono toolchain/build artefact. |
 
 ---
 
