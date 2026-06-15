@@ -1,12 +1,15 @@
 {
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": { "includeFiles": ["greenindex/**"] }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "functions": {
+    "api/index.py": {
+      "includeFiles": "greenindex/**"
     }
-  ],
-  "routes": [
-    { "src": "/(.*)", "dest": "api/index.py" }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
+    }
   ]
 }
