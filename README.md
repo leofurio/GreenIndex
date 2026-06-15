@@ -146,12 +146,12 @@ importa questo repository e fai *Deploy*: non serve configurare nulla.
 
 | File | Ruolo |
 |---|---|
-| `api/index.py` | Entrypoint serverless: espone l'app WSGI Flask in modalità hosted. |
-| `vercel.json` | Instrada tutte le richieste alla funzione e include il pacchetto. |
+| `app.py` | Entrypoint Flask rilevato automaticamente da Vercel: espone l'app WSGI in modalità hosted. |
+| `api/index.py` | Entrypoint serverless compatibile con configurazioni Vercel/API legacy. |
 | `requirements.txt` | Dipendenze installate da Vercel (Flask, Jinja2). |
 
 Niente binario `git` né accesso al filesystem: il repository GitHub viene
-scaricato come tarball via HTTPS (`api/index.py` → `greenindex.web.fetch`).
+scaricato come tarball via HTTPS (`app.py` → `greenindex.web.fetch`).
 
 **Variabili d'ambiente (opzionali):**
 
