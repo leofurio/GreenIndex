@@ -159,8 +159,10 @@ scaricato come tarball via HTTPS (`api/index.py` → `greenindex.web.fetch`).
   repository privati a cui il token ha accesso).
 
 **Limiti della demo serverless:** solo repository GitHub pubblici, tarball
-≤ 30 MB / ≤ 6000 file, timeout funzione 60 s, rate limit GitHub di 60 richieste
-all'ora per IP senza token. Per repository grandi usa la CLI in locale.
+≤ 30 MB / ≤ 6000 file, timeout della funzione serverless (≈10 s sul piano
+Hobby di Vercel), rate limit GitHub di 60 richieste all'ora per IP senza token.
+Lo snippet e i repository piccoli rientrano comodamente; per repository grandi
+usa la CLI in locale.
 
 ---
 
