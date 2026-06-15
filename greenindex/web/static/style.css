@@ -182,3 +182,27 @@ code { background: #eef2ee; padding: 1px 6px; border-radius: 5px; font-size: .85
   .stats-row { grid-template-columns: repeat(2, 1fr); }
   .report-hero { justify-content: center; text-align: center; }
 }
+
+/* Navigation and public rules page */
+.site-nav { margin-left: auto; display: flex; gap: 12px; }
+.site-nav a { color: #fff; text-decoration: none; font-weight: 700; font-size: .95rem; }
+.site-nav a:hover { text-decoration: underline; }
+.eyebrow { margin: 0 0 4px; color: var(--green-dark); font-weight: 800; text-transform: uppercase; letter-spacing: .06em; font-size: .78rem; }
+.rules-hero .lede { max-width: 860px; }
+.formula-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.rules-explainer pre { margin: 8px 0 10px; overflow-x: auto; background: #f4f6f3; border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.rules-explainer pre code { background: transparent; padding: 0; }
+.severity-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.rule-category-head { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+.rule-category-head h2, .rule-category-head p { margin: 0; }
+.rule-catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.rule-card { border: 1px solid var(--line); border-radius: 12px; padding: 14px; background: #fbfdfb; }
+.rule-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rule-card h3 { margin: 10px 0 6px; font-size: 1rem; }
+.rule-card p { margin: 0 0 8px; }
+
+@media (max-width: 720px) {
+  .site-header .wrap { flex-wrap: wrap; }
+  .site-nav { margin-left: 0; width: 100%; }
+  .formula-grid { grid-template-columns: 1fr; }
+}

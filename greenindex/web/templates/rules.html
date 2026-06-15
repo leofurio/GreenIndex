@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}GreenIndex · Regole applicate{% endblock %}
+{% block content %}
+
+<section class="hero-intro rules-hero">
+  <p class="eyebrow">Catalogo regole</p>
+  <h1>Regole applicate da GreenIndex</h1>
+  <p class="lede">
+    GreenIndex assegna una penalità a ogni anti-pattern rilevato e la normalizza
+    sulle righe di codice per produrre il KPI da 0 a 100. Questa pagina mostra
+    tutte le regole attive, il loro peso e il motivo per cui incidono su CPU,
+    memoria, rete, storage o consumo energetico.
+  </p>
+</section>
+
+<section class="card rules-explainer">
+  <h2>Come leggere il punteggio</h2>
+  <div class="formula-grid">
+    <div>
+      <h3>Formula GreenIndex</h3>
+      <pre><code>penalità   = Σ peso_gravità(violazione)
+KLOC       = righe_di_codice / 1000
+densità    = penalità / max(KLOC, 0.1)
+GreenIndex = clamp(100 − densità, 0, 100)</code></pre>
+    </div>
+    <div>
+      <h3>Stima illustrativa</h3>
+      <pre><code>kWh/anno  = penalità · {{ "%.2f"|format(kwh_per_point) }}
+kg CO₂e   = kWh/anno · {{ "%.2f"|format(kg_co2_per_kwh) }}</code></pre>
+      <p class="hint">
+        kWh e CO₂e sono stime comparative, non misure reali: non includono
+        traffico effettivo, hardware, regione cloud o mix energetico reale.
+      </p>
+    </div>
+  </div>
+
+  <h3>Gravità</h3>
+  <div class="severity-list">
+    {% for weight, label in severity_labels.items() %}
+      <span class="sev sev-{{ weight }}">{{ label }} · {{ weight }}</span>
+    {% endfor %}
+  </div>
+</section>
+
+{% for group in grouped_rules %}
+<section class="card rule-category" id="{{ group.id }}">
+  <div class="rule-category-head">
+    <span class="cat-ico">{{ group.meta.icon }}</span>
+    <div>
+      <h2>{{ group.meta.label }}</h2>
+      <p class="muted">{{ group.rules|length }} regole attive in questa categoria.</p>
+    </div>
+  </div>
+
+  <div class="rule-catalog">
+    {% for rule in group.rules %}
+    <article class="rule-card">
+      <div class="rule-card-head">
+        <code>{{ rule.id }}</code>
+        <span class="sev sev-{{ rule.severity }}">{{ rule.severity_label }}</span>
+      </div>
+      <h3>{{ rule.name }}</h3>
+      <p>{{ rule.description }}</p>
+      <p class="rule-fix"><strong>Rimedio:</strong> {{ rule.remediation }}</p>
+      <p class="small muted">
+        Detector: <code>{{ rule.detector }}</code>
+        {% if rule.languages %} · Linguaggi: {{ rule.languages|join(", ") }}{% endif %}
+      </p>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<p class="back"><a href="/">← Torna all'analisi</a></p>
+
+{% endblock %}
