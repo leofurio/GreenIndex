@@ -5,10 +5,10 @@
 <section class="hero-intro">
   <h1>Misura l'impronta del tuo codice</h1>
   <p class="lede">
-    GreenIndex analizza un repository alla ricerca di <strong>violazioni di
-    regole di consumo tecnologico</strong> (anti-pattern che sprecano CPU,
-    memoria, rete ed energia) e calcola un KPI da 0 a 100 con una classe di
-    efficienza da <strong>A</strong> a <strong>G</strong>.
+    GreenIndex analizza il codice alla ricerca di <strong>violazioni di regole
+    di consumo tecnologico</strong> (anti-pattern che sprecano CPU, memoria,
+    rete ed energia) e calcola un KPI da 0 a 100 con una classe di efficienza
+    da <strong>A</strong> a <strong>G</strong>.
   </p>
 </section>
 
@@ -16,6 +16,43 @@
 <div class="alert">{{ error }}</div>
 {% endif %}
 
+{% if hosted %}
+{# ---------------- Modalità hosted (es. Vercel) ---------------- #}
+<section class="card form-card">
+  <h2>📦 Analizza un repository GitHub</h2>
+  <form method="post" action="/analyze" class="analyze-form">
+    <div class="form-row">
+      <input type="text" name="target"
+             placeholder="https://github.com/utente/repo  oppure  utente/repo"
+             autocomplete="off" required>
+      <button type="submit">Analizza</button>
+    </div>
+    <p class="hint">Repository pubblici. I repository molto grandi potrebbero
+      superare i limiti della demo online.</p>
+  </form>
+</section>
+
+<section class="card form-card">
+  <h2>✍️ Analizza uno snippet di codice</h2>
+  <form method="post" action="/analyze-snippet" class="analyze-form">
+    <div class="snippet-controls">
+      <label for="language">Linguaggio</label>
+      <select id="language" name="language">
+        {% for value, label in snippet_languages %}
+        <option value="{{ value }}" {% if value == 'python' %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <textarea name="code" rows="12" spellcheck="false"
+              placeholder="Incolla qui il tuo codice…"></textarea>
+    <div class="form-row" style="margin-top:12px;">
+      <button type="submit">Analizza lo snippet</button>
+    </div>
+  </form>
+</section>
+
+{% else %}
+{# ---------------- Modalità locale ---------------- #}
 <section class="card form-card">
   <form method="post" action="/analyze" class="analyze-form">
     <label for="target">Percorso locale o URL del repository git</label>
@@ -32,6 +69,7 @@
     </p>
   </form>
 </section>
+{% endif %}
 
 <section class="categories-grid">
   <h2>Cosa controlla GreenIndex</h2>

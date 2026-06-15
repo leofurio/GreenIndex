@@ -98,18 +98,69 @@ greenindex serve              # http://127.0.0.1:8000
 greenindex serve --port 5000
 ```
 
-Inserisci un percorso locale o un URL `.git` e ottieni il cruscotto con
-indicatore a gauge, etichetta energetica A–G, scomposizione per categoria e
-dettaglio delle violazioni con suggerimenti di rimedio.
+La dashboard ha due modalità:
+
+- **locale** (default): inserisci un **percorso locale** o un **URL `.git`**
+  (richiede `git`) e ottieni il cruscotto con gauge, etichetta energetica A–G,
+  scomposizione per categoria e dettaglio delle violazioni con suggerimenti.
+- **hosted** (`HOSTED=True`, pensata per il deploy pubblico): analizza un
+  **repository GitHub pubblico** (scaricato via HTTPS, senza `git`) oppure uno
+  **snippet di codice incollato**. Non accede al filesystem dell'utente.
 
 È disponibile anche un'API JSON:
 
 ```bash
 curl "http://127.0.0.1:8000/api/analyze?target=/path/al/repo"
+# in hosted: ?target=https://github.com/utente/repo  oppure  utente/repo
 ```
 
-> ⚠️ **Sicurezza**: la dashboard legge percorsi locali e può clonare URL git.
-> È pensata per l'uso locale/CI. Non esporla su reti non fidate.
+> ⚠️ **Sicurezza**: in modalità locale la dashboard legge percorsi locali e può
+> clonare URL git: non esporla su reti non fidate. In modalità hosted gli host
+> remoti sono limitati a una whitelist (`github.com`) per mitigare gli SSRF.
+
+---
+
+## 🚀 Deploy online su Vercel
+
+Il repository è pronto per essere pubblicato come **applicazione serverless**
+su [Vercel](https://vercel.com): la dashboard parte automaticamente in modalità
+**hosted**.
+
+**Deploy in due passi:**
+
+```bash
+npm i -g vercel
+vercel            # dalla cartella del progetto (poi: vercel --prod)
+```
+
+In alternativa, su [vercel.com](https://vercel.com) scegli *Add New → Project*,
+importa questo repository e fai *Deploy*: non serve configurare nulla.
+
+**Cosa offre la versione online:**
+
+- 📦 Analisi di un **repository GitHub pubblico** (incolla l'URL o `owner/repo`).
+- ✍️ Analisi di uno **snippet** di codice incollato (con scelta del linguaggio).
+- Stesso cruscotto della versione locale (gauge, classe A–G, dettaglio).
+
+**Come funziona** (file inclusi nel repo):
+
+| File | Ruolo |
+|---|---|
+| `api/index.py` | Entrypoint serverless: espone l'app WSGI Flask in modalità hosted. |
+| `vercel.json` | Instrada tutte le richieste alla funzione e include il pacchetto. |
+| `requirements.txt` | Dipendenze installate da Vercel (Flask, Jinja2). |
+
+Niente binario `git` né accesso al filesystem: il repository GitHub viene
+scaricato come tarball via HTTPS (`api/index.py` → `greenindex.web.fetch`).
+
+**Variabili d'ambiente (opzionali):**
+
+- `GITHUB_TOKEN` — alza il limite di richieste all'API di GitHub (e consente i
+  repository privati a cui il token ha accesso).
+
+**Limiti della demo serverless:** solo repository GitHub pubblici, tarball
+≤ 30 MB / ≤ 6000 file, timeout funzione 60 s, rate limit GitHub di 60 richieste
+all'ora per IP senza token. Per repository grandi usa la CLI in locale.
 
 ---
 
@@ -195,7 +246,11 @@ greenindex/
 ├── report.py       # rendering terminale / JSON / HTML
 ├── cli.py          # interfaccia a riga di comando
 └── web/            # dashboard Flask (template + CSS condivisi con l'HTML)
+    ├── app.py      # factory dell'app (modalità locale / hosted)
+    └── fetch.py    # download sicuro del tarball GitHub (no `git`, anti-SSRF)
 
+api/index.py               # entrypoint serverless per Vercel
+vercel.json                # configurazione del deploy su Vercel
 examples/sample_project/   # progetto di esempio con violazioni volute
 tests/                     # suite di test (pytest)
 ```

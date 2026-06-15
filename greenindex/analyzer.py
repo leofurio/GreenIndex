@@ -398,7 +398,12 @@ class Analyzer:
 
         code_lines = count_code_lines(source)
         result.files.append(FileStat(path=rel, language=language, code_lines=code_lines, bytes=size))
+        self._run_text_detectors(rel, source, language, result)
 
+    # ------------------------------------------------------------------ #
+    def _run_text_detectors(self, rel: str, source: str, language: Optional[str],
+                            result: AnalysisResult) -> None:
+        """Esegue i rilevatori testuali su un sorgente già in memoria."""
         # Dockerfile: analisi dedicata.
         if language == "dockerfile":
             self._check_dockerfile(rel, source, result)
@@ -412,6 +417,23 @@ class Analyzer:
         # Rilevatori AST per Python.
         if language == "python":
             self._apply_python_ast(rel, source, result)
+
+    # ------------------------------------------------------------------ #
+    def analyze_source(self, name: str, source: str,
+                       language: Optional[str] = None) -> AnalysisResult:
+        """Analizza un singolo sorgente fornito come stringa (no filesystem).
+
+        Utile per analizzare uno snippet incollato (es. dashboard hosted).
+        """
+        result = AnalysisResult(root=name, rules=self.rules)
+        if language is None:
+            language = detect_language(name) or "python"
+        code_lines = count_code_lines(source)
+        size = len(source.encode("utf-8", "replace"))
+        result.files.append(FileStat(path=name, language=language,
+                                      code_lines=code_lines, bytes=size))
+        self._run_text_detectors(name, source, language, result)
+        return result
 
     # ------------------------------------------------------------------ #
     def _apply_regex_rules(self, rel: str, source: str, language: Optional[str],
