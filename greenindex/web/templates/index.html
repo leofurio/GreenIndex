@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}GreenIndex · Analizza un repository{% endblock %}
+{% block content %}
+
+<section class="hero-intro">
+  <h1>Misura l'impronta del tuo codice</h1>
+  <p class="lede">
+    GreenIndex analizza un repository alla ricerca di <strong>violazioni di
+    regole di consumo tecnologico</strong> (anti-pattern che sprecano CPU,
+    memoria, rete ed energia) e calcola un KPI da 0 a 100 con una classe di
+    efficienza da <strong>A</strong> a <strong>G</strong>.
+  </p>
+</section>
+
+{% if error %}
+<div class="alert">{{ error }}</div>
+{% endif %}
+
+<section class="card form-card">
+  <form method="post" action="/analyze" class="analyze-form">
+    <label for="target">Percorso locale o URL del repository git</label>
+    <div class="form-row">
+      <input type="text" id="target" name="target"
+             value="{{ default_path | default('') }}"
+             placeholder="/percorso/al/repo  oppure  https://github.com/utente/repo.git"
+             autocomplete="off" required>
+      <button type="submit">Analizza</button>
+    </div>
+    <p class="hint">
+      Esempi: <code>.</code> per la cartella corrente del server, un percorso
+      assoluto, oppure un URL <code>.git</code> (verrà clonato in shallow).
+    </p>
+  </form>
+</section>
+
+<section class="categories-grid">
+  <h2>Cosa controlla GreenIndex</h2>
+  <div class="grid">
+    <div class="cat-card"><span class="cat-ico">🔁</span><h3>Calcolo / CPU</h3>
+      <p>Cicli annidati, polling attivo, concatenazioni inefficienti.</p></div>
+    <div class="cat-card"><span class="cat-ico">🧠</span><h3>Memoria</h3>
+      <p>File letti interamente in RAM, risorse non chiuse.</p></div>
+    <div class="cat-card"><span class="cat-ico">🌐</span><h3>Rete & I/O</h3>
+      <p>Chiamate HTTP in ciclo, query N+1, richieste senza timeout.</p></div>
+    <div class="cat-card"><span class="cat-ico">🗄️</span><h3>Dati & Storage</h3>
+      <p>SELECT *, query senza WHERE/LIMIT.</p></div>
+    <div class="cat-card"><span class="cat-ico">📝</span><h3>Osservabilità</h3>
+      <p>Print di debug e logging verboso in produzione.</p></div>
+    <div class="cat-card"><span class="cat-ico">📦</span><h3>Dipendenze</h3>
+      <p>Librerie pesanti, import wildcard.</p></div>
+    <div class="cat-card"><span class="cat-ico">⚡</span><h3>Energia & Runtime</h3>
+      <p>Modalità debug, animazioni infinite, cryptomining.</p></div>
+    <div class="cat-card"><span class="cat-ico">🐳</span><h3>Infrastruttura</h3>
+      <p>Tag Docker non fissati, build non multi-stage.</p></div>
+  </div>
+</section>
+
+{% endblock %}

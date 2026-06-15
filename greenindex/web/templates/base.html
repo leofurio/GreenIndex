@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}GreenIndex{% endblock %}</title>
+  {% if inline_css %}
+  <style>{{ inline_css|safe }}</style>
+  {% else %}
+  <link rel="stylesheet" href="/static/style.css">
+  {% endif %}
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/">
+        <span class="leaf">🌿</span> GreenIndex
+      </a>
+      <span class="tagline">How green is your code?</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      GreenIndex v{{ version | default('') }} · KPI di sostenibilità del codice
+      basato sulle violazioni di regole di consumo tecnologico.
+    </div>
+  </footer>
+</body>
+</html>

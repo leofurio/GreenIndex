@@ -1,0 +1,5 @@
+requests>=2.0
+# GC051: dipendenze pesanti
+tensorflow>=2.10
+selenium>=4.0
+pandas>=1.5
