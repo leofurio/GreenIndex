@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}GreenIndex · {{ root_label }}{% endblock %}
+{% block content %}
+
+{% set circ = 502.65 %}
+
+<section class="report-hero">
+  <div class="gauge-wrap">
+    <svg viewBox="0 0 200 200" class="gauge" role="img" aria-label="GreenIndex {{ index.score }}">
+      <circle cx="100" cy="100" r="80" class="gauge-track"></circle>
+      <circle cx="100" cy="100" r="80" class="gauge-value"
+              stroke="{{ index.grade_color }}"
+              stroke-dasharray="{{ (index.score / 100 * circ) | round(2) }} {{ circ }}"
+              transform="rotate(-90 100 100)"></circle>
+      <text x="100" y="92" class="gauge-grade" fill="{{ index.grade_color }}">{{ index.grade }}</text>
+      <text x="100" y="120" class="gauge-score">{{ index.score }}</text>
+      <text x="100" y="138" class="gauge-max">/ 100</text>
+    </svg>
+  </div>
+  <div class="hero-meta">
+    <h1>GreenIndex <span style="color:{{ index.grade_color }}">{{ index.grade_label }}</span></h1>
+    <p class="repo-name">📁 {{ root_label }}</p>
+    <p class="muted">Generato il {{ generated_at }}</p>
+
+    <div class="energy-label">
+      {% for band in grade_bands %}
+      <div class="band {% if band[0] == index.grade %}active{% endif %}"
+           style="--band-color: {{ band[2] }}">
+        <span class="band-letter">{{ band[0] }}</span>
+        {% if band[0] == index.grade %}<span class="band-arrow">◀</span>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="stats-row">
+  <div class="stat"><div class="stat-num">{{ index.total_violations }}</div><div class="stat-lbl">violazioni</div></div>
+  <div class="stat"><div class="stat-num">{{ index.code_lines }}</div><div class="stat-lbl">righe di codice</div></div>
+  <div class="stat"><div class="stat-num">{{ result.code_files }}</div><div class="stat-lbl">file di codice</div></div>
+  <div class="stat"><div class="stat-num">{{ index.density | round(1) }}</div><div class="stat-lbl">penalità / KLOC</div></div>
+  <div class="stat"><div class="stat-num">-{{ index.penalty }}</div><div class="stat-lbl">debito di efficienza</div></div>
+</section>
+
+{% if index.total_violations == 0 %}
+<section class="card success">
+  <h2>✔ Nessuna violazione rilevata</h2>
+  <p>Il repository non presenta violazioni delle regole di consumo tecnologico note. Ottimo lavoro!</p>
+</section>
+{% else %}
+
+<div class="columns">
+  <section class="card">
+    <h2>Impatto per categoria</h2>
+    {% for cs in index.categories %}
+    <div class="cat-bar">
+      <div class="cat-bar-head">
+        <span>{{ categories_meta[cs.category].icon }} {{ cs.label }}</span>
+        <span class="muted">{{ cs.count }} viol. · {{ cs.percent_of_penalty | round(1) }}%</span>
+      </div>
+      <div class="bar"><div class="bar-fill" style="width: {{ cs.percent_of_penalty }}%; background: {{ cs.color }}"></div></div>
+    </div>
+    {% endfor %}
+  </section>
+
+  <section class="card">
+    <h2>Regole più impattanti</h2>
+    <table class="rules-table">
+      <thead><tr><th>ID</th><th>Regola</th><th>Occorrenze</th><th>Peso</th></tr></thead>
+      <tbody>
+      {% for rs in index.rules[:10] %}
+        <tr>
+          <td><code>{{ rs.rule_id }}</code></td>
+          <td>{{ rs.name }}</td>
+          <td class="num">{{ rs.count }}</td>
+          <td class="num">-{{ rs.penalty }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+
+<section class="card">
+  <h2>Dettaglio violazioni</h2>
+  {% for rs in index.rules %}
+    {% set rule = rules_by_id[rs.rule_id] %}
+    {% set items = violations | selectattr('rule_id', 'equalto', rs.rule_id) | list %}
+    <details class="rule-block" {% if loop.index <= 3 %}open{% endif %}>
+      <summary>
+        <span class="sev sev-{{ rule.severity }}">{{ rule.severity | sevlabel }}</span>
+        <code>{{ rs.rule_id }}</code>
+        <strong>{{ rule.name }}</strong>
+        <span class="muted">· {{ rs.count }} occorrenze</span>
+      </summary>
+      <p class="rule-desc">{{ rule.description }}</p>
+      <p class="rule-fix">💡 {{ rule.remediation }}</p>
+      <ul class="occurrences">
+        {% for v in items[:25] %}
+        <li>
+          <span class="loc">{{ v.path }}{% if v.line %}:{{ v.line }}{% endif %}</span>
+          {% if v.snippet %}<code class="snippet">{{ v.snippet }}</code>{% endif %}
+        </li>
+        {% endfor %}
+        {% if items | length > 25 %}
+        <li class="muted">… e altre {{ items | length - 25 }} occorrenze</li>
+        {% endif %}
+      </ul>
+    </details>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="card disclaimer">
+  <h2>Stima illustrativa</h2>
+  <p>
+    A scopo di sensibilizzazione, il debito di efficienza di
+    <strong>{{ index.penalty }}</strong> punti corrisponde a circa
+    <strong>{{ index.illustrative_kwh | round(1) }} kWh/anno</strong> e
+    <strong>{{ index.illustrative_kg_co2 | round(1) }} kg CO₂e/anno</strong>
+    indicativi.
+  </p>
+  <p class="muted small">
+    ⚠️ Questi valori sono una stima puramente illustrativa basata su un
+    coefficiente fisso e non rappresentano una misura reale di consumo o
+    emissioni. Servono solo a rendere tangibile l'ordine di grandezza.
+  </p>
+</section>
+
+{% if language_breakdown %}
+<section class="card">
+  <h2>Linguaggi (righe di codice)</h2>
+  <div class="lang-chips">
+    {% for lang, loc in language_breakdown.items() %}
+    <span class="chip">{{ lang }} <b>{{ loc }}</b></span>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if not standalone %}
+<p class="back"><a href="/">← Analizza un altro repository</a></p>
+{% endif %}
+
+{% endblock %}

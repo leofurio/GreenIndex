@@ -1,0 +1,5 @@
+# Dipendenza core (rendering HTML dei report)
+Jinja2>=3.0
+
+# Opzionale: dashboard web (greenindex serve)
+Flask>=2.0

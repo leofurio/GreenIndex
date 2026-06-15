@@ -1,0 +1,12 @@
+/* GC061: animazione infinita che tiene attiva la GPU/CPU */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

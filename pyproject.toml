@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "greenindex"
+version = "1.0.0"
+description = "KPI di sostenibilità del codice: calcola il GreenIndex di un repository in base alle violazioni di regole di consumo tecnologico."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "leofurio" }]
+keywords = ["green-coding", "sustainability", "static-analysis", "kpi", "energy"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "Jinja2>=3.0",
+]
+
+[project.optional-dependencies]
+web = ["Flask>=2.0"]
+dev = ["pytest>=7.0", "Flask>=2.0"]
+
+[project.scripts]
+greenindex = "greenindex.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/leofurio/GreenIndex"
+
+[tool.setuptools.packages.find]
+include = ["greenindex*"]
+
+[tool.setuptools.package-data]
+"greenindex.web" = ["templates/*.html", "static/*.css"]
