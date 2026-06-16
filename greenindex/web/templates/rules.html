@@ -42,6 +42,58 @@ kg CO₂e   = kWh/anno · {{ "%.2f"|format(kg_co2_per_kwh) }}</code></pre>
   </div>
 </section>
 
+<section class="card rules-explainer" id="co2">
+  <h2>Da dove arriva la stima di CO₂?</h2>
+  <p>
+    GreenIndex è un'analisi <strong>statica</strong>: non esegue il codice,
+    quindi <strong>non misura</strong> il consumo reale. La stima di energia e
+    CO₂ è un <strong>proxy didattico</strong> calcolato in due passi a partire
+    dalla penalità totale.
+  </p>
+
+  <ol class="co2-steps">
+    <li>
+      <strong>Da penalità a energia</strong> — ogni punto di penalità è
+      convertito in <code>{{ "%.2f"|format(kwh_per_point) }}</code> kWh/anno.
+      Questo coefficiente <strong>non deriva da una misura</strong>: è una
+      convenzione scelta per tradurre un numero astratto (i punti) in un ordine
+      di grandezza tangibile e confrontabile tra repository. Più anti-pattern
+      "energivori" vengono rilevati, più punti si accumulano, più alta è
+      l'energia stimata.
+    </li>
+    <li>
+      <strong>Da energia a CO₂</strong> — i kWh sono moltiplicati per
+      <code>{{ "%.2f"|format(kg_co2_per_kwh) }}</code> kg CO₂e/kWh, ovvero
+      l'<strong>intensità di carbonio</strong> della rete elettrica (quanta CO₂
+      si emette per produrre 1 kWh). Il valore reale dipende molto dal Paese e
+      dal mix energetico: va da ~0,05 kg/kWh (reti idro/nucleare) a oltre
+      0,7 kg/kWh (reti a carbone); la media globale è circa 0,45–0,48 e quella
+      europea circa 0,25–0,30 secondo i dati pubblici di energia
+      (IEA, Ember, Our World in Data). Abbiamo scelto <strong>0,30</strong> come
+      valore intermedio indicativo.
+    </li>
+  </ol>
+
+  <h3>Perché è stato fatto così</h3>
+  <p>
+    L'obiettivo è la <strong>sensibilizzazione</strong>, non la contabilità
+    delle emissioni: un numero in kWh/CO₂ rende immediato il "costo" degli
+    sprechi molto più di un punteggio astratto. Per questo i coefficienti sono
+    <strong>fissi, trasparenti e configurabili</strong> nel codice
+    (<code>greenindex/scoring.py</code>), non stime calcolate a ogni esecuzione.
+  </p>
+
+  <h3>Cosa servirebbe per una misura reale</h3>
+  <p class="muted">
+    Una stima rigorosa richiederebbe la profilazione energetica a runtime
+    (CPU, RAM e rete effettivamente usati), le caratteristiche dell'hardware,
+    il PUE del datacenter, la regione cloud e l'intensità di carbonio in tempo
+    reale — tipicamente con strumenti dedicati come CodeCarbon, Cloud Carbon
+    Footprint o Electricity Maps. GreenIndex resta volutamente leggero e
+    analizza solo il sorgente.
+  </p>
+</section>
+
 {% for group in grouped_rules %}
 <section class="card rule-category" id="{{ group.id }}">
   <div class="rule-category-head">
