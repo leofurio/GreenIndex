@@ -473,6 +473,282 @@ DEFAULT_RULES: List[Rule] = [
             "gli artefatti necessari."
         ),
     ),
+    # ===================================================================== #
+    # Regole aggiuntive.
+    # ===================================================================== #
+    # ----------------------------- COMPUTE -------------------------------- #
+    Rule(
+        id="GC004",
+        name="Regex (ri)compilata dentro un ciclo",
+        category="compute",
+        severity=SEV_MINOR,
+        detector="python_ast",
+        languages=("python",),
+        description=(
+            "Compilare o usare una regex (re.compile/search/match/sub/findall) "
+            "dentro un ciclo ricompila il pattern a ogni iterazione, sprecando CPU."
+        ),
+        remediation=(
+            "Compila la regex UNA volta con re.compile() fuori dal ciclo e "
+            "riusa l'oggetto pattern al suo interno."
+        ),
+    ),
+    Rule(
+        id="GC005",
+        name="time.sleep() in una funzione async",
+        category="compute",
+        severity=SEV_MEDIUM,
+        detector="python_ast",
+        languages=("python",),
+        description=(
+            "time.sleep() è bloccante: dentro una funzione 'async' ferma "
+            "l'intero event loop, impedendo l'esecuzione di altre coroutine."
+        ),
+        remediation="Usa 'await asyncio.sleep(...)' al posto di time.sleep().",
+    ),
+    Rule(
+        id="GC006",
+        name="Iterazione pandas con iterrows()",
+        category="compute",
+        severity=SEV_MINOR,
+        detector="regex",
+        languages=("python",),
+        pattern=r"\.iterrows\s*\(",
+        description=(
+            "iterrows() itera un DataFrame riga per riga in Python puro: è "
+            "ordini di grandezza più lento (e più energivoro) delle operazioni "
+            "vettorizzate."
+        ),
+        remediation=(
+            "Usa operazioni vettorizzate di pandas/NumPy; se proprio necessario "
+            "itera con itertuples(), più veloce di iterrows()."
+        ),
+    ),
+    Rule(
+        id="GC007",
+        name="Ordinamento dentro un ciclo",
+        category="compute",
+        severity=SEV_MINOR,
+        detector="python_ast",
+        languages=("python",),
+        description=(
+            "Chiamare sorted() o list.sort() dentro un ciclo riordina i dati a "
+            "ogni iterazione, con costo inutile O(n·m·log m)."
+        ),
+        remediation=(
+            "Sposta l'ordinamento fuori dal ciclo (ordina una sola volta) o "
+            "mantieni la struttura già ordinata."
+        ),
+    ),
+    Rule(
+        id="GC008",
+        name="Appartenenza a lista/tupla letterale in un ciclo",
+        category="compute",
+        severity=SEV_LOW,
+        detector="python_ast",
+        languages=("python",),
+        description=(
+            "Il test 'x in [..]'/'x in (..)' su una lista o tupla è O(n); "
+            "dentro un ciclo diventa O(n·m). Un set offre lookup O(1)."
+        ),
+        remediation=(
+            "Definisci un set FUORI dal ciclo (es. VALIDI = {...}) e usa "
+            "'x in VALIDI'."
+        ),
+    ),
+    Rule(
+        id="GC009",
+        name="Ricorsione senza memoizzazione",
+        category="compute",
+        severity=SEV_MINOR,
+        detector="python_ast",
+        languages=("python",),
+        description=(
+            "Una funzione che richiama se stessa più volte senza cache può "
+            "avere complessità esponenziale, ricalcolando gli stessi "
+            "sottoproblemi."
+        ),
+        remediation=(
+            "Aggiungi @functools.lru_cache/@cache, usa la programmazione "
+            "dinamica o riscrivi in forma iterativa."
+        ),
+    ),
+    # ----------------------------- MEMORY --------------------------------- #
+    Rule(
+        id="GC012",
+        name="Materializzazione inutile di una lista",
+        category="memory",
+        severity=SEV_MINOR,
+        detector="python_ast",
+        languages=("python",),
+        description=(
+            "Passare una list-comprehension a sum/any/all/min/max/join crea "
+            "una lista temporanea in memoria invece di consumare un generatore."
+        ),
+        remediation=(
+            "Togli le parentesi quadre per usare una generator expression: "
+            "es. sum(x for x in dati) invece di sum([x for x in dati])."
+        ),
+    ),
+    Rule(
+        id="GC013",
+        name="copy.deepcopy() dentro un ciclo",
+        category="memory",
+        severity=SEV_MINOR,
+        detector="python_ast",
+        languages=("python",),
+        description=(
+            "deepcopy() alloca e copia ricorsivamente: dentro un ciclo "
+            "moltiplica le allocazioni e la pressione sul garbage collector."
+        ),
+        remediation=(
+            "Copia una sola volta fuori dal ciclo, usa una copia superficiale "
+            "se sufficiente, o evita del tutto la copia."
+        ),
+    ),
+    # ------------------------------ DATA ---------------------------------- #
+    Rule(
+        id="GC033",
+        name="LIKE con wildcard iniziale",
+        category="data",
+        severity=SEV_MINOR,
+        detector="regex",
+        languages=("sql", "python", "javascript", "typescript", "java", "php",
+                   "ruby", "go", "csharp", "c", "cpp", "kotlin", "scala", "rust"),
+        pattern=r"like\s+['\"]%",
+        flags=re.IGNORECASE,
+        description=(
+            "Un LIKE che inizia con '%' non può usare gli indici "
+            "(non-sargable) e forza una scansione completa della tabella."
+        ),
+        remediation=(
+            "Evita il wildcard iniziale, oppure usa un indice full-text/trigram "
+            "per le ricerche di sottostringa."
+        ),
+    ),
+    # -------------------------- OBSERVABILITY ----------------------------- #
+    Rule(
+        id="GC042",
+        name="Messaggio di log formattato in modo eager",
+        category="observability",
+        severity=SEV_LOW,
+        detector="regex",
+        languages=("python",),
+        pattern=r"\b(logging|logger|log)\.(debug|info|warning|error|critical|exception)\s*\(\s*f[\"']",
+        description=(
+            "Usare una f-string come messaggio di log costruisce la stringa "
+            "anche quando quel livello è disattivato, sprecando CPU."
+        ),
+        remediation=(
+            "Usa il logging lazy con i placeholder: logger.debug('x=%s', x) "
+            "invece di logger.debug(f'x={x}')."
+        ),
+    ),
+    # ----------------------------- ENERGY --------------------------------- #
+    Rule(
+        id="GC064",
+        name="Media HTML in autoplay",
+        category="energy",
+        severity=SEV_MINOR,
+        detector="regex",
+        languages=("html",),
+        pattern=r"<(video|audio)[^>]*\bautoplay\b",
+        flags=re.IGNORECASE,
+        description=(
+            "L'autoplay di video/audio avvia decodifica e rete senza "
+            "interazione dell'utente, consumando CPU/GPU, banda e batteria."
+        ),
+        remediation=(
+            "Evita autoplay; avvia la riproduzione su interazione e usa "
+            "preload='none' per non scaricare in anticipo."
+        ),
+    ),
+    # ----------------------------- ASSETS --------------------------------- #
+    Rule(
+        id="GC071",
+        name='Immagine senza loading="lazy"',
+        category="assets",
+        severity=SEV_LOW,
+        detector="regex",
+        languages=("html",),
+        pattern=r"<img\b(?![^>]*\bloading\s*=)[^>]*>",
+        flags=re.IGNORECASE,
+        description=(
+            "Senza loading='lazy' il browser scarica anche le immagini fuori "
+            "schermo, sprecando banda ed energia di trasferimento."
+        ),
+        remediation=(
+            "Aggiungi loading='lazy' alle immagini non critiche (lascia "
+            "'eager' solo per quelle above-the-fold)."
+        ),
+    ),
+    Rule(
+        id="GC072",
+        name="Bundle JS/CSS non minificato di grandi dimensioni",
+        category="assets",
+        severity=SEV_MINOR,
+        detector="asset",
+        description=(
+            "Servire file JS/CSS grandi e non minificati aumenta banda, tempo "
+            "di caricamento ed energia, soprattutto su mobile."
+        ),
+        remediation=(
+            "Minifica e comprimi (gzip/brotli) gli asset in build e abilita il "
+            "code splitting per ridurre il payload iniziale."
+        ),
+    ),
+    # ------------------------------ INFRA --------------------------------- #
+    Rule(
+        id="GC082",
+        name="Installazione pacchetti senza pulizia cache (Docker)",
+        category="infra",
+        severity=SEV_LOW,
+        detector="dockerfile",
+        languages=("dockerfile",),
+        description=(
+            "pip senza --no-cache-dir o apt senza --no-install-recommends "
+            "lasciano cache e pacchetti superflui nell'immagine, ingrandendola."
+        ),
+        remediation=(
+            "Usa 'pip install --no-cache-dir', 'apt-get install "
+            "--no-install-recommends' e 'rm -rf /var/lib/apt/lists/*' nello "
+            "stesso RUN."
+        ),
+    ),
+    Rule(
+        id="GC083",
+        name="Immagine base Docker non-slim",
+        category="infra",
+        severity=SEV_LOW,
+        detector="dockerfile",
+        languages=("dockerfile",),
+        description=(
+            "Immagini base complete (es. 'node', 'python', 'ubuntu') sono molto "
+            "più grandi delle varianti '-slim'/'-alpine': più storage, banda e "
+            "tempi di pull."
+        ),
+        remediation=(
+            "Usa una variante '-slim' o '-alpine' (o un'immagine distroless) "
+            "quando possibile."
+        ),
+    ),
+    Rule(
+        id="GC084",
+        name="ADD usato al posto di COPY (Docker)",
+        category="infra",
+        severity=SEV_LOW,
+        detector="dockerfile",
+        languages=("dockerfile",),
+        description=(
+            "ADD ha comportamenti impliciti (download remoto, estrazione "
+            "archivi) che possono gonfiare l'immagine e ridurne la "
+            "riproducibilità."
+        ),
+        remediation=(
+            "Usa COPY per i file locali; riserva ADD ai casi che ne richiedono "
+            "esplicitamente le funzioni speciali."
+        ),
+    ),
 ]
 
 
