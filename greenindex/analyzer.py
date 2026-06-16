@@ -45,6 +45,10 @@ MEDIA_EXTS = {".mp4", ".mov", ".avi", ".webm", ".mp3", ".wav", ".zip", ".tar", "
 IMAGE_SIZE_LIMIT = 500 * 1024       # 500 KB
 MEDIA_SIZE_LIMIT = 2 * 1024 * 1024  # 2 MB
 
+# Asset di testo minificabili (regola GC072).
+MINIFIABLE_EXTS = {".js", ".mjs", ".cjs", ".css"}
+MINIFIABLE_SIZE_LIMIT = 150 * 1024  # 150 KB
+
 # Limite di dimensione dei file di testo analizzati (evita file generati enormi).
 MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
 
@@ -120,12 +124,19 @@ class _PythonAstDetector(ast.NodeVisitor):
         "first", "all", "fetchone", "fetchall", "find", "find_one", "aggregate",
     }
     QUERY_ATTR_HINTS = {"objects", "session", "cursor", "db", "query"}
+    # Metodi del modulo re considerati nella regola GC004.
+    RE_METHODS = {"compile", "search", "match", "fullmatch", "sub", "subn",
+                  "findall", "finditer", "split"}
+    # Decoratori che indicano memoizzazione (regola GC009).
+    CACHE_DECORATORS = {"lru_cache", "cache", "cached", "cached_property", "memoize"}
 
     def __init__(self, path: str, enabled: set):
         self.path = path
         self.enabled = enabled
         self.violations: List[Violation] = []
         self._loop_depth = 0
+        # Stack del contesto funzione: True se la funzione corrente è async.
+        self._func_async_stack: List[bool] = []
 
     # -- helper ----------------------------------------------------------- #
     def _add(self, rule_id: str, node: ast.AST, message: str) -> None:
@@ -196,8 +207,21 @@ class _PythonAstDetector(ast.NodeVisitor):
     def visit_Call(self, node: ast.Call) -> None:
         root, attr = self._call_name(node)
 
-        # Lettura intero file (gestita anche via regex per altri linguaggi,
-        # qui solo come supporto: la regola GC010 resta principalmente regex).
+        # GC005: time.sleep() bloccante dentro una funzione async.
+        if (root == "time" and attr == "sleep"
+                and self._func_async_stack and self._func_async_stack[-1]):
+            self._add("GC005", node,
+                      "time.sleep() dentro una funzione async: blocca l'event loop.")
+
+        # GC012: list-comprehension materializzata in un'aggregazione.
+        if (isinstance(node.func, ast.Name) and node.func.id in {"sum", "any", "all", "min", "max"}
+                and node.args and isinstance(node.args[0], ast.ListComp)):
+            self._add("GC012", node,
+                      f"{node.func.id}([...]) crea una lista temporanea: usa un generatore.")
+        elif attr == "join" and node.args and isinstance(node.args[0], ast.ListComp):
+            self._add("GC012", node,
+                      "''.join([...]) crea una lista temporanea: usa un generatore.")
+
         if self._loop_depth > 0:
             # Chiamata di rete dentro un ciclo.
             if (root in self.NETWORK_CALLERS and attr in self.NETWORK_METHODS) or attr == "urlopen":
@@ -215,7 +239,70 @@ class _PythonAstDetector(ast.NodeVisitor):
                         f"Possibile query al DB ('{attr}') dentro un ciclo: pattern N+1.",
                     )
 
+            # GC004: regex (ri)compilata dentro un ciclo.
+            if root == "re" and attr in self.RE_METHODS:
+                self._add("GC004", node,
+                          f"re.{attr}() dentro un ciclo ricompila il pattern a ogni iterazione.")
+            # GC007: ordinamento dentro un ciclo.
+            if (isinstance(node.func, ast.Name) and node.func.id == "sorted") or attr == "sort":
+                self._add("GC007", node,
+                          "Ordinamento dentro un ciclo: riordina a ogni iterazione.")
+            # GC013: copia profonda dentro un ciclo.
+            if attr == "deepcopy":
+                self._add("GC013", node,
+                          "copy.deepcopy() dentro un ciclo: copie profonde ripetute.")
+
         self.generic_visit(node)
+
+    # -- appartenenza a lista/tupla letterale in un ciclo (GC008) --------- #
+    def visit_Compare(self, node: ast.Compare) -> None:
+        if self._loop_depth > 0:
+            for op, comp in zip(node.ops, node.comparators):
+                if isinstance(op, (ast.In, ast.NotIn)) and isinstance(comp, (ast.List, ast.Tuple)):
+                    self._add("GC008", node,
+                              "Appartenenza a una lista/tupla letterale in un ciclo: usa un set.")
+                    break
+        self.generic_visit(node)
+
+    # -- funzioni: ricorsione senza memoizzazione + contesto async -------- #
+    def visit_FunctionDef(self, node: ast.AST) -> None:
+        self._visit_function(node, is_async=False)
+
+    def visit_AsyncFunctionDef(self, node: ast.AST) -> None:
+        self._visit_function(node, is_async=True)
+
+    def _visit_function(self, node: ast.AST, is_async: bool) -> None:
+        self._check_recursion(node)
+        self._func_async_stack.append(is_async)
+        self.generic_visit(node)
+        self._func_async_stack.pop()
+
+    def _check_recursion(self, node: ast.AST) -> None:
+        if "GC009" not in self.enabled:
+            return
+        for dec in getattr(node, "decorator_list", []):
+            if self._decorator_name(dec) in self.CACHE_DECORATORS:
+                return
+        name = getattr(node, "name", "")
+        self_calls = 0
+        for child in ast.walk(node):
+            if (isinstance(child, ast.Call) and isinstance(child.func, ast.Name)
+                    and child.func.id == name):
+                self_calls += 1
+        if self_calls >= 2:
+            self._add("GC009", node,
+                      f"La funzione ricorsiva '{name}' si richiama {self_calls} "
+                      "volte senza memoizzazione.")
+
+    @staticmethod
+    def _decorator_name(dec: ast.AST) -> str:
+        if isinstance(dec, ast.Call):
+            dec = dec.func
+        if isinstance(dec, ast.Attribute):
+            return dec.attr
+        if isinstance(dec, ast.Name):
+            return dec.id
+        return ""
 
     # -- concatenazione di stringhe in un ciclo --------------------------- #
     def visit_AugAssign(self, node: ast.AugAssign) -> None:
@@ -378,6 +465,9 @@ class Analyzer:
         ext = os.path.splitext(fpath)[1].lower()
         language = detect_language(fpath)
 
+        # GC072: bundle JS/CSS non minificato di grandi dimensioni.
+        self._check_minifiable_asset(rel, os.path.basename(fpath), ext, size, result)
+
         # Asset binari -> regola GC070.
         if ext in IMAGE_EXTS or ext in MEDIA_EXTS:
             self._check_asset(fpath, rel, ext, size, result)
@@ -515,40 +605,73 @@ class Analyzer:
         lines = source.splitlines()
         from_lines = []
         has_stage_alias = False
+        heavy_names = {"node", "python", "golang", "go", "openjdk", "ruby",
+                       "php", "debian", "ubuntu", "maven", "gradle", "rust"}
         for idx, raw in enumerate(lines):
             line = raw.strip()
-            if line.upper().startswith("FROM "):
+            upper = line.upper()
+            if upper.startswith("FROM "):
                 from_lines.append((idx + 1, line))
                 if re.search(r"\bAS\b", line, re.IGNORECASE):
                     has_stage_alias = True
+                parts = line.split()
+                image = parts[1] if len(parts) > 1 else ""
+                base = image.split("/")[-1]
+                name = base.split(":")[0].lower()
+                tag = base.split(":")[1].lower() if ":" in base else ""
                 # GC080: tag :latest oppure tag assente.
-                if "GC080" in self.enabled_ids:
-                    image = line.split()[1] if len(line.split()) > 1 else ""
-                    tag_part = image.split("/")[-1]
-                    if ":latest" in image or ":" not in tag_part:
-                        result.violations.append(
-                            Violation(
-                                rule_id="GC080",
-                                path=rel,
-                                line=idx + 1,
-                                snippet=line[:200],
-                                message="Immagine base senza tag fissato (:latest).",
-                            )
-                        )
+                if "GC080" in self.enabled_ids and (":latest" in image or ":" not in base):
+                    self._dock_add(result, rel, idx + 1, line, "GC080",
+                                   "Immagine base senza tag fissato (:latest).")
+                # GC083: immagine base non-slim.
+                if ("GC083" in self.enabled_ids and name in heavy_names
+                        and "slim" not in tag and "alpine" not in tag):
+                    self._dock_add(result, rel, idx + 1, line, "GC083",
+                                   "Immagine base non-slim: preferisci una variante -slim/-alpine.")
+            elif upper.startswith("RUN ") and "GC082" in self.enabled_ids:
+                if re.search(r"\bpip3?\s+install\b", line) and "--no-cache-dir" not in line:
+                    self._dock_add(result, rel, idx + 1, line, "GC082",
+                                   "pip install senza --no-cache-dir: cache inutile nell'immagine.")
+                elif re.search(r"\bapt(-get)?\s+install\b", line) and "--no-install-recommends" not in line:
+                    self._dock_add(result, rel, idx + 1, line, "GC082",
+                                   "apt install senza --no-install-recommends: pacchetti superflui.")
+            elif upper.startswith("ADD ") and "GC084" in self.enabled_ids:
+                if ("http" not in line.lower()
+                        and not re.search(r"\.(tar|tgz|gz|bz2|xz|zip)\b", line, re.IGNORECASE)):
+                    self._dock_add(result, rel, idx + 1, line, "GC084",
+                                   "ADD per file locali: preferisci COPY.")
         # GC081: nessuna multi-stage build su base "pesante".
         if "GC081" in self.enabled_ids and from_lines and not has_stage_alias:
             heavy_base = re.compile(r"\b(node|python|golang|maven|gradle|openjdk|rust|ruby)\b", re.IGNORECASE)
             if any(heavy_base.search(l) for _, l in from_lines):
                 line_no, line = from_lines[0]
-                result.violations.append(
-                    Violation(
-                        rule_id="GC081",
-                        path=rel,
-                        line=line_no,
-                        snippet=line[:200],
-                        message="Dockerfile senza multi-stage build su immagine di build pesante.",
-                    )
+                self._dock_add(result, rel, line_no, line, "GC081",
+                               "Dockerfile senza multi-stage build su immagine di build pesante.")
+
+    def _dock_add(self, result: AnalysisResult, rel: str, line_no: int,
+                  line: str, rule_id: str, message: str) -> None:
+        result.violations.append(
+            Violation(rule_id=rule_id, path=rel, line=line_no,
+                      snippet=line[:200], message=message)
+        )
+
+    # ------------------------------------------------------------------ #
+    def _check_minifiable_asset(self, rel: str, fname: str, ext: str, size: int,
+                                result: AnalysisResult) -> None:
+        if "GC072" not in self.enabled_ids:
+            return
+        if (ext in MINIFIABLE_EXTS and ".min." not in fname.lower()
+                and size > MINIFIABLE_SIZE_LIMIT):
+            result.violations.append(
+                Violation(
+                    rule_id="GC072",
+                    path=rel,
+                    line=0,
+                    snippet=f"{ext} • {_human_size(size)}",
+                    message=f"Asset JS/CSS non minificato di {_human_size(size)}.",
+                    extra={"bytes": str(size)},
                 )
+            )
 
     # ------------------------------------------------------------------ #
     def _check_asset(self, fpath: str, rel: str, ext: str, size: int,

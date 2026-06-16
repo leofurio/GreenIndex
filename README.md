@@ -247,8 +247,16 @@ Le regole sono raggruppate per categoria d'impatto:
 | GC001 | Calcolo / CPU | Cicli annidati | media | Complessità O(n²) o peggiore su Python e linguaggi C-like. |
 | GC002 | Calcolo / CPU | Concatenazione di stringhe in un ciclo | minore | `+=` su stringhe dentro loop Python. |
 | GC003 | Calcolo / CPU | Busy-wait / polling attivo | alta | `while True` con `sleep`, preferibile con eventi/queue. |
+| GC004 | Calcolo / CPU | Regex (ri)compilata dentro un ciclo | minore | `re.compile/search/sub/...` in loop: precompila fuori. |
+| GC005 | Calcolo / CPU | `time.sleep()` in funzione async | media | Sleep bloccante che ferma l'event loop; usa `await asyncio.sleep`. |
+| GC006 | Calcolo / CPU | Iterazione pandas con `iterrows()` | minore | Iterazione riga-per-riga lenta; preferisci la vettorizzazione. |
+| GC007 | Calcolo / CPU | Ordinamento dentro un ciclo | minore | `sorted()`/`.sort()` ripetuto a ogni iterazione. |
+| GC008 | Calcolo / CPU | Appartenenza a lista/tupla letterale in ciclo | info | `x in [..]` O(n) in loop; usa un `set`. |
+| GC009 | Calcolo / CPU | Ricorsione senza memoizzazione | minore | Auto-chiamate multiple senza cache (rischio esponenziale). |
 | GC010 | Memoria | Lettura dell'intero file in memoria | minore | `read()`, `readlines()`, `readFileSync`, `file_get_contents`. |
 | GC011 | Memoria | Risorsa file non chiusa | media | `open()` Python senza context manager `with`. |
+| GC012 | Memoria | Materializzazione inutile di una lista | minore | `sum/any/all/min/max/join([...])`: usa un generatore. |
+| GC013 | Memoria | `copy.deepcopy()` dentro un ciclo | minore | Copie profonde ripetute: copia fuori dal loop. |
 | GC020 | Rete & I/O | Chiamata di rete dentro un ciclo | alta | HTTP ripetuto in loop Python. |
 | GC021 | Rete & I/O | Query al DB dentro un ciclo (N+1) | alta | Query/ORM/fetch ripetuti per elemento. |
 | GC022 | Rete & I/O | Richiesta HTTP Python senza timeout | minore | `requests.*(...)` senza `timeout`. |
@@ -256,8 +264,10 @@ Le regole sono raggruppate per categoria d'impatto:
 | GC030 | Dati & Storage | `SELECT *` | minore | Query che trasferiscono colonne non necessarie. |
 | GC031 | Dati & Storage | Query senza `WHERE`/`LIMIT` | minore | Letture potenzialmente full-scan. |
 | GC032 | Dati & Storage | `UPDATE`/`DELETE` senza `WHERE` | alta | Scritture/cancellazioni non filtrate o full-scan. |
+| GC033 | Dati & Storage | `LIKE` con wildcard iniziale | minore | `LIKE '%...'` non-sargable: forza full table scan. |
 | GC040 | Osservabilità | `print`/`console.log` di debug | info | Debug lasciato nel codice applicativo. |
 | GC041 | Osservabilità | Logging in livello DEBUG | info | `logger.debug`/`logging.debug` persistenti. |
+| GC042 | Osservabilità | Messaggio di log formattato in modo eager | info | f-string nel log costruita anche se il livello è disattivo. |
 | GC050 | Dipendenze | Import wildcard (`import *`) | info | Import Python non espliciti. |
 | GC051 | Dipendenze | Dipendenza pesante | minore | Librerie con footprint elevato quando rilevate nei manifest. |
 | GC052 | Dipendenze | Versione dipendenza non vincolata | info | Dipendenze senza vincolo o con `*`/`latest`/`x`. |
@@ -265,9 +275,15 @@ Le regole sono raggruppate per categoria d'impatto:
 | GC061 | Energia & Runtime | Animazione CSS infinita | minore | `animation: ... infinite`. |
 | GC062 | Energia & Runtime | Pattern di cryptomining | critica | Script/keyword di mining in contesto d'uso. |
 | GC063 | Energia & Runtime | `setInterval` ad alta frequenza | minore | Timer JavaScript sotto 100 ms. |
+| GC064 | Energia & Runtime | Media HTML in autoplay | minore | `<video>`/`<audio>` con `autoplay`: decodifica e rete inutili. |
 | GC070 | Asset | Asset di grandi dimensioni non ottimizzato | minore | Immagini >500 KB o media/archivi >2 MB. |
+| GC071 | Asset | Immagine senza `loading="lazy"` | info | `<img>` senza lazy-load: scarica anche le immagini fuori schermo. |
+| GC072 | Asset | Bundle JS/CSS non minificato di grandi dimensioni | minore | File `.js`/`.css` >150 KB non `.min.`. |
 | GC080 | Infrastruttura | Immagine Docker con tag non fissato | info | `FROM image` senza tag o con `:latest`. |
 | GC081 | Infrastruttura | Dockerfile senza multi-stage build | info | Immagini finali che includono toolchain/build artefact. |
+| GC082 | Infrastruttura | Installazione pacchetti senza pulizia cache | info | `pip` senza `--no-cache-dir` / `apt` senza `--no-install-recommends`. |
+| GC083 | Infrastruttura | Immagine base Docker non-slim | info | `FROM node/python/ubuntu...` senza `-slim`/`-alpine`. |
+| GC084 | Infrastruttura | `ADD` usato al posto di `COPY` | info | `ADD` per file locali: preferisci `COPY`. |
 
 ---
 
