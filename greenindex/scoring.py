@@ -35,10 +35,19 @@ GRADE_BANDS = [
     ("G", 0.0, "#b71c1c", "Critico"),
 ]
 
-# Coefficiente puramente ILLUSTRATIVO per dare un ordine di grandezza
-# all'impatto. NON è una misura scientifica di emissioni.
+# Coefficienti puramente ILLUSTRATIVI per dare un ordine di grandezza
+# all'impatto. NON sono una misura scientifica di emissioni: GreenIndex è
+# un'analisi statica e non esegue il codice. Vedi la pagina /rules ("Da dove
+# arriva la stima di CO2?") per la spiegazione mostrata all'utente.
+#
+# kWh per punto: convenzione didattica (nessuna base empirica), serve solo a
+# tradurre i punti astratti di penalità in un ordine di grandezza tangibile.
 ILLUSTRATIVE_KWH_PER_POINT = 0.05  # kWh/anno indicativi per punto di penalità
-ILLUSTRATIVE_KG_CO2_PER_KWH = 0.30  # mix energetico medio indicativo
+# kg CO2e per kWh: intensità di carbonio della rete elettrica. Il valore reale
+# varia molto (da ~0.05 su reti idro/nucleare a >0.7 su reti a carbone; media
+# globale ~0.45-0.48, europea ~0.25-0.30 secondo IEA/Ember/Our World in Data).
+# 0.30 è un valore intermedio indicativo.
+ILLUSTRATIVE_KG_CO2_PER_KWH = 0.30
 
 
 @dataclass
