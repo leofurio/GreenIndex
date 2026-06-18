@@ -241,6 +241,8 @@ Le regole sono raggruppate per categoria d'impatto:
 - **Energia & Runtime**: debug, animazioni/timer continui e pattern abusivi.
 - **Asset**: immagini/media troppo grandi.
 - **Infrastruttura**: immagini Docker non fissate o troppo pesanti.
+- **Software Carbon Intensity (SCI)**: anti-pattern che alzano i fattori
+  riducibili dell'SCI (energia, hardware, intensità di carbonio).
 
 | ID | Categoria | Regola | Gravità | Cosa intercetta |
 |---|---|---|:---:|---|
@@ -284,6 +286,36 @@ Le regole sono raggruppate per categoria d'impatto:
 | GC082 | Infrastruttura | Installazione pacchetti senza pulizia cache | info | `pip` senza `--no-cache-dir` / `apt` senza `--no-install-recommends`. |
 | GC083 | Infrastruttura | Immagine base Docker non-slim | info | `FROM node/python/ubuntu...` senza `-slim`/`-alpine`. |
 | GC084 | Infrastruttura | `ADD` usato al posto di `COPY` | info | `ADD` per file locali: preferisci `COPY`. |
+| GC090 | Software Carbon Intensity (SCI) | Schedulazione cron ad altissima frequenza | minore | Cron `* * * * *` (ogni minuto): risvegli continui e nessuna carbon awareness. |
+| GC091 | Software Carbon Intensity (SCI) | Container sempre attivo | info | `restart: always` / `restartPolicy: Always`: risorse riservate 24/7. |
+| GC092 | Software Carbon Intensity (SCI) | Caching HTTP disabilitato | info | `Cache-Control: no-store`: forza refetch e ricalcolo a ogni richiesta. |
+| GC093 | Software Carbon Intensity (SCI) | Repliche fisse elevate senza autoscaling | info | `replicas: ≥4` sempre accese: hardware sovradimensionato. |
+
+### Software Carbon Intensity (SCI)
+
+Le regole della categoria **SCI** si ispirano alla *Software Carbon Intensity
+Specification* della [Green Software Foundation](https://sci.greensoftware.foundation/)
+(ISO/IEC 21031:2024), che misura il carbonio emesso per unità funzionale del
+software:
+
+```
+SCI = ((E · I) + M) / R
+
+  E = energia consumata dal software (kWh)
+  I = intensità di carbonio della rete elettrica (gCO₂e/kWh)
+  M = emissioni "incorporate" dell'hardware (embodied carbon)
+  R = unità funzionale (per utente, per richiesta, ...)
+```
+
+GreenIndex non calcola l'SCI (servirebbero dati di runtime), ma intercetta
+staticamente anti-pattern che fanno crescere i fattori riducibili, secondo i
+tre pilastri del green software:
+
+- **Efficienza energetica (E)** — es. GC092 (caching disabilitato).
+- **Efficienza hardware / embodied carbon (M)** — es. GC091 (container
+  sempre attivo), GC093 (repliche fisse sovradimensionate).
+- **Carbon awareness (I)** — es. GC090 (job pianificati senza riguardo per le
+  finestre a bassa intensità di carbonio).
 
 ---
 

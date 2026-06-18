@@ -1,0 +1,15 @@
+# Esempio volutamente non ottimale per mostrare le regole SCI di GreenIndex.
+services:
+  web:
+    image: python:3.12
+    # GC091: il servizio resta sempre attivo, risorse riservate 24/7.
+    restart: always
+    # GC093: troppe repliche fisse sempre accese senza autoscaling.
+    deploy:
+      replicas: 8
+
+  cron:
+    image: alpine
+    restart: always
+    # GC090: job pianificato ogni minuto, nessuna carbon awareness.
+    command: ["sh", "-c", "echo '* * * * * /run.sh' | crontab -"]

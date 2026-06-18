@@ -50,6 +50,7 @@ CATEGORIES: Dict[str, Dict[str, str]] = {
     "energy": {"label": "Energia & Runtime", "icon": "⚡", "color": "#d64550"},
     "assets": {"label": "Asset", "icon": "🖼️", "color": "#5e7ce2"},
     "infra": {"label": "Infrastruttura", "icon": "🐳", "color": "#3a7ca5"},
+    "sci": {"label": "Software Carbon Intensity (SCI)", "icon": "🌍", "color": "#1b998b"},
 }
 
 
@@ -747,6 +748,102 @@ DEFAULT_RULES: List[Rule] = [
         remediation=(
             "Usa COPY per i file locali; riserva ADD ai casi che ne richiedono "
             "esplicitamente le funzioni speciali."
+        ),
+    ),
+    # ===================================================================== #
+    # Software Carbon Intensity (SCI) — Green Software Foundation /
+    # ISO/IEC 21031:2024.
+    #
+    #   SCI = ((E · I) + M) / R
+    #     E = energia consumata dal software (kWh)
+    #     I = intensità di carbonio della rete elettrica (gCO2e/kWh)
+    #     M = emissioni "incorporate" dell'hardware (embodied carbon)
+    #     R = unità funzionale (per utente, per richiesta, ...)
+    #
+    # Le regole seguenti intercettano anti-pattern che fanno crescere uno dei
+    # tre fattori riducibili dell'SCI, secondo i tre pilastri del green
+    # software: efficienza energetica (E), efficienza hardware (M) e
+    # consapevolezza del carbonio / carbon awareness (I).
+    # ===================================================================== #
+    Rule(
+        id="GC090",
+        name="Schedulazione cron ad altissima frequenza (ogni minuto)",
+        category="sci",
+        severity=SEV_MINOR,
+        detector="regex",
+        languages=("yaml", "ini", "toml"),
+        pattern=r"\*\s+\*\s+\*\s+\*\s+\*",
+        description=(
+            "Una pianificazione 'ogni minuto' (* * * * *) risveglia di continuo "
+            "CPU e risorse, impedendo agli host di restare idle e ignorando le "
+            "finestre a bassa intensità di carbonio (carbon awareness, fattore I)."
+        ),
+        remediation=(
+            "Riduci la frequenza del job, passa a un modello event-driven o "
+            "spostalo in fasce orarie con energia più pulita (carbon-aware "
+            "scheduling)."
+        ),
+    ),
+    Rule(
+        id="GC091",
+        name="Container sempre attivo (restart: always)",
+        category="sci",
+        severity=SEV_LOW,
+        detector="regex",
+        languages=("yaml",),
+        pattern=r"\brestart(policy)?\s*:\s*[\"']?always\b",
+        flags=re.IGNORECASE,
+        description=(
+            "Un servizio configurato come sempre attivo riserva CPU e memoria "
+            "24/7 anche quando è inattivo, aumentando l'energia di idle e la "
+            "quota di emissioni incorporate dell'hardware (embodied carbon, "
+            "fattore M dell'SCI)."
+        ),
+        remediation=(
+            "Usa 'on-failure'/'unless-stopped' dove possibile e adotta lo "
+            "scale-to-zero (autoscaler, serverless, KEDA) per non tenere "
+            "risorse allocate quando non servono."
+        ),
+    ),
+    Rule(
+        id="GC092",
+        name="Caching HTTP disabilitato (no-store)",
+        category="sci",
+        severity=SEV_LOW,
+        detector="regex",
+        languages=("python", "javascript", "typescript", "java", "php", "ruby",
+                   "go", "csharp", "html", "yaml", "json", "ini"),
+        pattern=r"cache[-_ ]?control\b[^\n]*\bno-store\b",
+        flags=re.IGNORECASE,
+        description=(
+            "Disabilitare la cache (Cache-Control: no-store) forza client, "
+            "proxy e CDN a riscaricare e ricalcolare la risposta a ogni "
+            "richiesta, sprecando energia di rete e di calcolo (efficienza "
+            "energetica, fattore E dell'SCI)."
+        ),
+        remediation=(
+            "Abilita la cache per le risorse cacheabili (Cache-Control con "
+            "max-age/ETag) e riserva 'no-store' ai soli contenuti sensibili."
+        ),
+    ),
+    Rule(
+        id="GC093",
+        name="Numero fisso ed elevato di repliche senza autoscaling",
+        category="sci",
+        severity=SEV_LOW,
+        detector="regex",
+        languages=("yaml",),
+        pattern=r"\breplicas\s*:\s*([4-9]|\d{2,})\b",
+        flags=re.IGNORECASE,
+        description=(
+            "Fissare molte repliche sempre accese sovradimensiona l'allocazione "
+            "hardware indipendentemente dal carico reale, aumentando energia di "
+            "idle ed emissioni incorporate (efficienza hardware, fattore M "
+            "dell'SCI)."
+        ),
+        remediation=(
+            "Dimensiona le repliche sul carico effettivo e usa l'autoscaling "
+            "orizzontale (HPA/KEDA) con scale-to-zero quando possibile."
         ),
     ),
 ]
