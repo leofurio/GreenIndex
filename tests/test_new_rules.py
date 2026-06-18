@@ -131,3 +131,40 @@ def test_gc083_not_flagged_for_slim(tmp_path):
 
 def test_gc084_add_instead_of_copy(tmp_path):
     assert "GC084" in _repo_ids(tmp_path, "Dockerfile", "FROM alpine\nADD app.py /app/app.py\n")
+
+
+# ------------------- Software Carbon Intensity (SCI) ---------------------- #
+def test_gc090_cron_every_minute():
+    assert "GC090" in _snippet_ids("ci.yml", 'on:\n  schedule:\n    - cron: "* * * * *"\n')
+
+
+def test_gc090_not_flagged_for_sparser_cron():
+    assert "GC090" not in _snippet_ids("ci.yml", 'on:\n  schedule:\n    - cron: "0 */6 * * *"\n')
+
+
+def test_gc091_restart_always():
+    assert "GC091" in _snippet_ids("docker-compose.yml", "services:\n  web:\n    restart: always\n")
+
+
+def test_gc091_restartpolicy_always():
+    assert "GC091" in _snippet_ids("pod.yml", "spec:\n  restartPolicy: Always\n")
+
+
+def test_gc091_not_flagged_for_on_failure():
+    assert "GC091" not in _snippet_ids("docker-compose.yml", "services:\n  web:\n    restart: on-failure\n")
+
+
+def test_gc092_cache_control_no_store():
+    assert "GC092" in _snippet_ids("app.py", "resp.headers['Cache-Control'] = 'no-store'\n")
+
+
+def test_gc092_not_flagged_for_max_age():
+    assert "GC092" not in _snippet_ids("app.py", "resp.headers['Cache-Control'] = 'max-age=3600'\n")
+
+
+def test_gc093_high_fixed_replicas():
+    assert "GC093" in _snippet_ids("deploy.yml", "spec:\n  replicas: 8\n")
+
+
+def test_gc093_not_flagged_for_low_replicas():
+    assert "GC093" not in _snippet_ids("deploy.yml", "spec:\n  replicas: 2\n")
