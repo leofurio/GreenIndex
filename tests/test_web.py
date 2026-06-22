@@ -97,3 +97,65 @@ def test_rules_page_lists_rules_and_calculation(hosted_client):
     assert b"GC052" in r.data
     assert b"kWh/anno" in r.data
     assert "CO₂e".encode() in r.data
+
+
+# ------------------------------ impact counter ----------------------------- #
+def test_counter_hidden_when_no_repos(tmp_path):
+    # Nota: in hosted il CSS è inlineato, quindi la *classe* .impact-counter
+    # compare comunque; come marcatore della sezione usiamo il testo visibile.
+    import os
+
+    os.environ["GREENINDEX_STATS_FILE"] = str(tmp_path / "stats.json")
+    os.environ.pop("KV_REST_API_URL", None)
+    os.environ.pop("KV_REST_API_TOKEN", None)
+    try:
+        client = create_app({"HOSTED": True, "INLINE_CSS": True}).test_client()
+        assert b"repo analizzati" not in client.get("/").data
+    finally:
+        os.environ.pop("GREENINDEX_STATS_FILE", None)
+
+
+def test_snippet_does_not_count_as_repo(tmp_path):
+    import os
+
+    os.environ["GREENINDEX_STATS_FILE"] = str(tmp_path / "stats.json")
+    os.environ.pop("KV_REST_API_URL", None)
+    os.environ.pop("KV_REST_API_TOKEN", None)
+    try:
+        client = create_app({"HOSTED": True, "INLINE_CSS": True}).test_client()
+        client.post("/analyze-snippet", data={"code": "print('x')\n", "language": "python"})
+        assert b"repo analizzati" not in client.get("/").data
+    finally:
+        os.environ.pop("GREENINDEX_STATS_FILE", None)
+
+
+def test_counter_shows_recorded_repos(tmp_path):
+    import os
+
+    os.environ["GREENINDEX_STATS_FILE"] = str(tmp_path / "stats.json")
+    os.environ.pop("KV_REST_API_URL", None)
+    os.environ.pop("KV_REST_API_TOKEN", None)
+    try:
+        client = create_app({"HOSTED": True, "INLINE_CSS": True}).test_client()
+        # Registriamo direttamente nello store per non dipendere dalla rete.
+        from greenindex.web.stats import create_stats_store
+
+        create_stats_store({"HOSTED": True}).record(12.5)
+        html = client.get("/").data
+        assert b"repo analizzati" in html
+        assert "kWh che abbiamo aiutato a ottimizzare".encode() in html
+    finally:
+        os.environ.pop("GREENINDEX_STATS_FILE", None)
+
+
+def test_file_stats_store_persists_and_accumulates(tmp_path):
+    from greenindex.web.stats import FileStatsStore
+
+    store = FileStatsStore(str(tmp_path / "s.json"))
+    store.record(2.0)
+    store.record(3.5)
+    snap = store.snapshot()
+    assert snap.repos == 2
+    assert snap.kwh == pytest.approx(5.5)
+    # Un nuovo store sullo stesso file rilegge i totali persistiti.
+    assert FileStatsStore(str(tmp_path / "s.json")).snapshot().repos == 2

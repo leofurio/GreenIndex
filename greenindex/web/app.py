@@ -31,6 +31,7 @@ from ..scoring import (
     compute_green_index,
 )
 from .fetch import FetchError, fetch_github_repo, parse_github_target
+from .stats import create_stats_store
 
 # Linguaggi selezionabili per l'analisi di uno snippet.
 SNIPPET_LANGUAGES = [
@@ -63,6 +64,9 @@ def create_app(config: Optional[dict] = None):
         app.config.update(config)
 
     register_filters(app.jinja_env)
+
+    # Contatore cumulativo (repo analizzati + kWh illustrativi "ottimizzati").
+    stats_store = create_stats_store(app.config)
 
     # CSS letto una sola volta per l'inlining (modalità hosted).
     css_text = ""
@@ -108,6 +112,7 @@ def create_app(config: Optional[dict] = None):
             "index.html",
             default_path=("" if app.config.get("HOSTED") else os.getcwd()),
             snippet_languages=SNIPPET_LANGUAGES,
+            stats=stats_store.snapshot(),
         )
 
     @app.route("/analyze", methods=["POST"])
@@ -121,6 +126,7 @@ def create_app(config: Optional[dict] = None):
             return _home_error(str(exc))
         except Exception as exc:  # noqa: BLE001
             return _home_error(f"Analisi non riuscita: {exc}")
+        stats_store.record(index.illustrative_kwh)
         return _render_report(index, result, label)
 
     @app.route("/analyze-snippet", methods=["POST"])
@@ -156,6 +162,7 @@ def create_app(config: Optional[dict] = None):
             return jsonify({"error": str(exc)}), 400
         except Exception as exc:  # noqa: BLE001
             return jsonify({"error": str(exc)}), 400
+        stats_store.record(index.illustrative_kwh)
         return jsonify(to_json_dict(index, result, label))
 
 
@@ -184,6 +191,7 @@ def create_app(config: Optional[dict] = None):
             "index.html",
             default_path=("" if app.config.get("HOSTED") else os.getcwd()),
             snippet_languages=SNIPPET_LANGUAGES,
+            stats=stats_store.snapshot(),
             error=message,
         ), 400
 
