@@ -12,6 +12,20 @@
   </p>
 </section>
 
+{% if stats and stats.repos %}
+<section class="impact-counter" aria-label="Impatto cumulativo di GreenIndex">
+  <div class="counter-item">
+    <span class="counter-value">{{ stats.repos | itnum }}</span>
+    <span class="counter-label">repo analizzati</span>
+  </div>
+  <div class="counter-sep" aria-hidden="true"></div>
+  <div class="counter-item">
+    <span class="counter-value">{{ stats.kwh | itnum(1) }}</span>
+    <span class="counter-label">kWh che abbiamo aiutato a ottimizzare</span>
+  </div>
+</section>
+{% endif %}
+
 {% if error %}
 <div class="alert">{{ error }}</div>
 {% endif %}

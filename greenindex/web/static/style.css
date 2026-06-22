@@ -206,3 +206,43 @@ code { background: #eef2ee; padding: 1px 6px; border-radius: 5px; font-size: .85
   .site-nav { margin-left: 0; width: 100%; }
   .formula-grid { grid-template-columns: 1fr; }
 }
+
+/* Contatore d'impatto in homepage */
+.impact-counter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px 36px;
+  margin: 18px 0 28px;
+  padding: 22px 26px;
+  background: linear-gradient(120deg, #eaf4ea, #f3faf3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.counter-item { text-align: center; }
+.counter-value {
+  display: block;
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--green-dark);
+  font-variant-numeric: tabular-nums;
+}
+.counter-label {
+  display: block;
+  margin-top: 4px;
+  font-size: .9rem;
+  color: var(--muted);
+}
+.counter-sep {
+  width: 1px;
+  align-self: stretch;
+  background: var(--line);
+}
+
+@media (max-width: 720px) {
+  .counter-sep { display: none; }
+  .counter-value { font-size: 1.7rem; }
+}

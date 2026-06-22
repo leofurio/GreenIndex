@@ -194,11 +194,27 @@ def to_json_dict(index: GreenIndexResult, result: AnalysisResult,
 # --------------------------------------------------------------------------- #
 # HTML.
 # --------------------------------------------------------------------------- #
+def _format_it_number(value, decimals: int = 0) -> str:
+    """Formatta un numero in stile italiano (1.234,5).
+
+    Usa il punto come separatore delle migliaia e la virgola per i decimali.
+    Robusto a valori non numerici (restituisce stringa vuota).
+    """
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return ""
+    formatted = f"{number:,.{decimals}f}"  # es. "1,234.5"
+    # Scambia i separatori anglosassoni con quelli italiani.
+    return formatted.replace(",", " ").replace(".", ",").replace(" ", ".")
+
+
 def register_filters(env) -> None:
     """Registra i filtri Jinja usati dai template (CLI e web)."""
     from .rules import SEVERITY_LABELS
 
     env.filters["sevlabel"] = lambda s: SEVERITY_LABELS.get(s, str(s))
+    env.filters["itnum"] = _format_it_number
 
 
 def _jinja_env():
