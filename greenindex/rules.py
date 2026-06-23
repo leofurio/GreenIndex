@@ -55,6 +55,31 @@ CATEGORIES: Dict[str, Dict[str, str]] = {
 
 
 @dataclass(frozen=True)
+class FixGuide:
+    """Guida dettagliata su *come* risolvere una violazione.
+
+    Estende il `remediation` (una riga) con passi operativi e un esempio di
+    codice "prima/dopo", così il report può mostrare concretamente come
+    intervenire su ogni segnalazione.
+    """
+
+    # Passi operativi, in ordine, per applicare la correzione.
+    steps: Tuple[str, ...] = ()
+    # Esempio di codice da evitare (anti-pattern).
+    bad: str = ""
+    # Esempio di codice consigliato (correzione).
+    good: str = ""
+    # Linguaggio dell'esempio (per evidenziazione/etichetta), facoltativo.
+    language: str = ""
+    # Nota aggiuntiva facoltativa (caveat, quando NON applicare, ecc.).
+    note: str = ""
+
+    @property
+    def has_example(self) -> bool:
+        return bool(self.bad or self.good)
+
+
+@dataclass(frozen=True)
 class Rule:
     """Una regola di consumo tecnologico."""
 
@@ -80,6 +105,11 @@ class Rule:
     @property
     def category_label(self) -> str:
         return CATEGORIES.get(self.category, {}).get("label", self.category)
+
+    @property
+    def fix_guide(self) -> Optional["FixGuide"]:
+        """Guida "come risolverlo" associata alla regola (se disponibile)."""
+        return FIX_GUIDES.get(self.id)
 
 
 @dataclass
@@ -847,6 +877,573 @@ DEFAULT_RULES: List[Rule] = [
         ),
     ),
 ]
+
+
+# --------------------------------------------------------------------------- #
+# Guide "come risolverlo": passi operativi + esempio prima/dopo per ogni
+# regola. Sono tenute separate dalla definizione delle regole per non
+# appesantirla; vengono collegate tramite `Rule.fix_guide`.
+# --------------------------------------------------------------------------- #
+FIX_GUIDES: Dict[str, FixGuide] = {
+    # ----------------------------- COMPUTE -------------------------------- #
+    "GC001": FixGuide(
+        steps=(
+            "Individua il dato che il ciclo interno sta cercando.",
+            "Costruisci una volta sola una struttura di lookup (dict/set) "
+            "indicizzata su quel dato.",
+            "Sostituisci il ciclo interno con un accesso diretto O(1).",
+        ),
+        language="python",
+        bad=(
+            "for u in utenti:\n"
+            "    for o in ordini:\n"
+            "        if o.user_id == u.id:\n"
+            "            collega(u, o)"
+        ),
+        good=(
+            "ordini_per_utente = {}\n"
+            "for o in ordini:\n"
+            "    ordini_per_utente.setdefault(o.user_id, []).append(o)\n"
+            "for u in utenti:\n"
+            "    for o in ordini_per_utente.get(u.id, []):\n"
+            "        collega(u, o)"
+        ),
+        note="Da O(n·m) a O(n+m): l'indice si paga una volta sola.",
+    ),
+    "GC002": FixGuide(
+        steps=(
+            "Sostituisci la variabile stringa con una lista.",
+            "Nel ciclo usa append() invece di +=.",
+            "Unisci i pezzi con ''.join(parti) dopo il ciclo.",
+        ),
+        language="python",
+        bad=(
+            "risultato = \"\"\n"
+            "for parola in parole:\n"
+            "    risultato += parola + \",\""
+        ),
+        good=(
+            "parti = []\n"
+            "for parola in parole:\n"
+            "    parti.append(parola)\n"
+            "risultato = \",\".join(parti)"
+        ),
+    ),
+    "GC003": FixGuide(
+        steps=(
+            "Sostituisci il polling con una primitiva bloccante (coda, "
+            "Condition, Event) o un modello async/event-driven.",
+            "Lascia che sia il produttore a 'svegliare' il consumatore.",
+        ),
+        language="python",
+        bad=(
+            "while True:\n"
+            "    if coda.vuota():\n"
+            "        time.sleep(0.1)\n"
+            "        continue\n"
+            "    elabora(coda.pop())"
+        ),
+        good=(
+            "while True:\n"
+            "    item = coda.get()  # si blocca finché non arriva un elemento\n"
+            "    elabora(item)"
+        ),
+    ),
+    "GC004": FixGuide(
+        steps=(
+            "Sposta re.compile() PRIMA del ciclo.",
+            "Dentro il ciclo riusa l'oggetto pattern compilato.",
+        ),
+        language="python",
+        bad=(
+            "for riga in righe:\n"
+            "    if re.search(r\"\\d{4}-\\d{2}-\\d{2}\", riga):\n"
+            "        ..."
+        ),
+        good=(
+            "DATA = re.compile(r\"\\d{4}-\\d{2}-\\d{2}\")\n"
+            "for riga in righe:\n"
+            "    if DATA.search(riga):\n"
+            "        ..."
+        ),
+    ),
+    "GC005": FixGuide(
+        steps=(
+            "Sostituisci time.sleep() con await asyncio.sleep().",
+            "Assicurati che la funzione sia attesa con await dal chiamante.",
+        ),
+        language="python",
+        bad=("async def poll():\n    time.sleep(1)"),
+        good=("async def poll():\n    await asyncio.sleep(1)"),
+        note="time.sleep() blocca l'intero event loop; asyncio.sleep() no.",
+    ),
+    "GC006": FixGuide(
+        steps=(
+            "Esprimi l'operazione in forma vettorizzata su colonne intere.",
+            "Se devi proprio iterare, usa itertuples() (più veloce di iterrows()).",
+        ),
+        language="python",
+        bad=(
+            "for _, row in df.iterrows():\n"
+            "    df.loc[_, \"tot\"] = row[\"a\"] + row[\"b\"]"
+        ),
+        good=("df[\"tot\"] = df[\"a\"] + df[\"b\"]"),
+    ),
+    "GC007": FixGuide(
+        steps=(
+            "Sposta l'ordinamento fuori dal ciclo: ordina una sola volta.",
+            "Nel ciclo lavora sulla struttura già ordinata.",
+        ),
+        language="python",
+        bad=(
+            "for q in query:\n"
+            "    dati.sort()\n"
+            "    cerca(dati, q)"
+        ),
+        good=(
+            "dati.sort()\n"
+            "for q in query:\n"
+            "    cerca(dati, q)"
+        ),
+    ),
+    "GC008": FixGuide(
+        steps=(
+            "Definisci un set con i valori validi FUORI dal ciclo.",
+            "Usa 'x in VALIDI' per un lookup O(1).",
+        ),
+        language="python",
+        bad=(
+            "for x in dati:\n"
+            "    if x in [1, 2, 3, 4]:\n"
+            "        ..."
+        ),
+        good=(
+            "VALIDI = {1, 2, 3, 4}\n"
+            "for x in dati:\n"
+            "    if x in VALIDI:\n"
+            "        ..."
+        ),
+    ),
+    "GC009": FixGuide(
+        steps=(
+            "Aggiungi una cache con @functools.lru_cache / @cache, oppure",
+            "riscrivi in forma iterativa / programmazione dinamica.",
+        ),
+        language="python",
+        bad=(
+            "def fib(n):\n"
+            "    if n < 2:\n"
+            "        return n\n"
+            "    return fib(n - 1) + fib(n - 2)"
+        ),
+        good=(
+            "@functools.lru_cache(maxsize=None)\n"
+            "def fib(n):\n"
+            "    if n < 2:\n"
+            "        return n\n"
+            "    return fib(n - 1) + fib(n - 2)"
+        ),
+    ),
+    # ----------------------------- MEMORY --------------------------------- #
+    "GC010": FixGuide(
+        steps=(
+            "Itera l'handle del file riga per riga invece di readlines()/read().",
+            "Per dati binari, leggi a blocchi di dimensione fissa.",
+        ),
+        language="python",
+        bad=(
+            "with open(\"dati.csv\") as f:\n"
+            "    righe = f.readlines()\n"
+            "for riga in righe:\n"
+            "    elabora(riga)"
+        ),
+        good=(
+            "with open(\"dati.csv\") as f:\n"
+            "    for riga in f:        # streaming, una riga alla volta\n"
+            "        elabora(riga)"
+        ),
+    ),
+    "GC011": FixGuide(
+        steps=(
+            "Apri il file con 'with open(...) as f:'.",
+            "Tutto il codice che usa il file va nel blocco with.",
+        ),
+        language="python",
+        bad=("f = open(\"dati.txt\")\ncontenuto = f.read()"),
+        good=("with open(\"dati.txt\") as f:\n    contenuto = f.read()"),
+    ),
+    "GC012": FixGuide(
+        steps=(
+            "Togli le parentesi quadre per passare un generatore.",
+            "sum/any/all/min/max/join consumano direttamente l'iteratore.",
+        ),
+        language="python",
+        bad=("totale = sum([x * 2 for x in numeri])"),
+        good=("totale = sum(x * 2 for x in numeri)"),
+    ),
+    "GC013": FixGuide(
+        steps=(
+            "Valuta se serve davvero una copia profonda.",
+            "Se basta una copia superficiale, usa {**base} / list(base) / .copy().",
+            "Se serve deepcopy, falla una sola volta fuori dal ciclo.",
+        ),
+        language="python",
+        bad=(
+            "for item in lista:\n"
+            "    base = copy.deepcopy(template)\n"
+            "    base.update(item)"
+        ),
+        good=(
+            "for item in lista:\n"
+            "    base = {**template, **item}  # nuovo dict, copia superficiale"
+        ),
+        note="Usa deepcopy solo con oggetti annidati e mutabili che vanno isolati.",
+    ),
+    # ----------------------------- NETWORK -------------------------------- #
+    "GC020": FixGuide(
+        steps=(
+            "Cerca un endpoint bulk/batch che accetti più id in una richiesta.",
+            "In alternativa parallelizza (ThreadPoolExecutor/async) o usa una cache.",
+        ),
+        language="python",
+        bad=(
+            "for id in ids:\n"
+            "    r = requests.get(f\"/api/users/{id}\")"
+        ),
+        good=(
+            "r = requests.get(\"/api/users\", params={\"ids\": \",\".join(ids)})"
+        ),
+    ),
+    "GC021": FixGuide(
+        steps=(
+            "Raccogli gli id e fai una sola query con IN (...) / JOIN.",
+            "Con un ORM usa l'eager loading (joinedload/selectinload, "
+            "prefetch_related).",
+        ),
+        language="python",
+        bad=(
+            "for autore in autori:\n"
+            "    libri = db.query(\n"
+            "        \"SELECT * FROM libri WHERE autore_id = ?\", autore.id)"
+        ),
+        good=(
+            "ids = [a.id for a in autori]\n"
+            "libri = db.query(\n"
+            "    \"SELECT * FROM libri WHERE autore_id IN (...)\", ids)\n"
+            "# poi raggruppa in memoria per autore_id"
+        ),
+    ),
+    "GC022": FixGuide(
+        steps=("Aggiungi un parametro timeout esplicito alla chiamata.",),
+        language="python",
+        bad=("r = requests.get(\"https://api.example.com/dati\")"),
+        good=("r = requests.get(\"https://api.example.com/dati\", timeout=5)"),
+    ),
+    "GC023": FixGuide(
+        steps=(
+            "Passa un signal/AbortController o un timeout alla richiesta.",
+        ),
+        language="javascript",
+        bad=("const r = await fetch(\"/api/dati\");"),
+        good=(
+            "const r = await fetch(\"/api/dati\", {\n"
+            "  signal: AbortSignal.timeout(5000),\n"
+            "});"
+        ),
+    ),
+    # ------------------------------ DATA ---------------------------------- #
+    "GC030": FixGuide(
+        steps=("Elenca esplicitamente solo le colonne che ti servono.",),
+        language="sql",
+        bad=("SELECT * FROM utenti WHERE attivo = 1"),
+        good=("SELECT id, nome, email FROM utenti WHERE attivo = 1"),
+    ),
+    "GC031": FixGuide(
+        steps=(
+            "Aggiungi una clausola WHERE per filtrare le righe.",
+            "Aggiungi un LIMIT e gli indici opportuni.",
+        ),
+        language="sql",
+        bad=("SELECT id, nome FROM ordini;"),
+        good=("SELECT id, nome FROM ordini WHERE stato = 'aperto' LIMIT 100;"),
+    ),
+    "GC032": FixGuide(
+        steps=(
+            "Aggiungi sempre un WHERE che identifichi le righe da modificare.",
+            "Prima verifica il filtro con una SELECT.",
+        ),
+        language="sql",
+        bad=("UPDATE utenti SET attivo = 0;"),
+        good=(
+            "UPDATE utenti SET attivo = 0\n"
+            "WHERE ultimo_accesso < '2023-01-01';"
+        ),
+        note="Un UPDATE/DELETE senza WHERE tocca l'intera tabella: rischio reale.",
+    ),
+    "GC033": FixGuide(
+        steps=(
+            "Evita il '%' iniziale così l'indice resta utilizzabile.",
+            "Per ricerche di sottostringa usa un indice full-text/trigram.",
+        ),
+        language="sql",
+        bad=("SELECT id FROM prodotti WHERE nome LIKE '%scarpa%';"),
+        good=("SELECT id FROM prodotti WHERE nome LIKE 'scarpa%';"),
+    ),
+    # -------------------------- OBSERVABILITY ----------------------------- #
+    "GC040": FixGuide(
+        steps=(
+            "Sostituisci print()/console.log() con un logger configurabile.",
+            "Imposta il livello in base all'ambiente.",
+        ),
+        language="python",
+        bad=("print(\"valore:\", valore)"),
+        good=("logger.debug(\"valore: %s\", valore)"),
+    ),
+    "GC041": FixGuide(
+        steps=(
+            "Rendi il livello di log configurabile (variabile d'ambiente).",
+            "Tieni DEBUG solo in sviluppo.",
+        ),
+        language="python",
+        bad=("logging.basicConfig(level=logging.DEBUG)"),
+        good=(
+            "logging.basicConfig(\n"
+            "    level=os.getenv(\"LOG_LEVEL\", \"INFO\"))"
+        ),
+    ),
+    "GC042": FixGuide(
+        steps=(
+            "Sostituisci la f-string con il formato lazy a placeholder %s.",
+            "Passa i valori come argomenti separati a logger.<livello>().",
+        ),
+        language="python",
+        bad=("logger.debug(f\"utente={utente} ruolo={ruolo}\")"),
+        good=("logger.debug(\"utente=%s ruolo=%s\", utente, ruolo)"),
+        note="Con i placeholder la stringa si costruisce solo se il livello è attivo.",
+    ),
+    # --------------------------- DEPENDENCIES ----------------------------- #
+    "GC050": FixGuide(
+        steps=("Importa esplicitamente solo i nomi che usi.",),
+        language="python",
+        bad=("from os.path import *"),
+        good=("from os.path import join, exists"),
+    ),
+    "GC051": FixGuide(
+        steps=(
+            "Verifica se usi davvero tutta la libreria o solo una piccola parte.",
+            "Valuta un'alternativa più leggera o un modulo della standard library.",
+        ),
+        language="python",
+        bad=("import pandas as pd\ndf = pd.read_csv(\"dati.csv\")  # solo per leggere"),
+        good=(
+            "import csv\n"
+            "with open(\"dati.csv\") as f:\n"
+            "    righe = list(csv.DictReader(f))"
+        ),
+    ),
+    "GC052": FixGuide(
+        steps=(
+            "Fissa una versione (o un range compatibile) per ogni dipendenza.",
+            "Genera e versiona un lockfile per build riproducibili.",
+        ),
+        language="text",
+        bad=("requests\nflask"),
+        good=("requests==2.32.3\nflask==3.0.3"),
+    ),
+    # ----------------------------- ENERGY --------------------------------- #
+    "GC060": FixGuide(
+        steps=(
+            "Pilota il debug da configurazione/variabile d'ambiente.",
+            "Assicurati che sia OFF in produzione.",
+        ),
+        language="python",
+        bad=("app.run(debug=True)"),
+        good=("app.run(debug=os.getenv(\"FLASK_DEBUG\") == \"1\")"),
+    ),
+    "GC061": FixGuide(
+        steps=(
+            "Limita le iterazioni dell'animazione invece di 'infinite'.",
+            "Disattivala con prefers-reduced-motion.",
+        ),
+        language="css",
+        bad=(".spinner { animation: spin 1s linear infinite; }"),
+        good=(
+            ".spinner { animation: spin 1s linear 3; }\n"
+            "@media (prefers-reduced-motion: reduce) {\n"
+            "  .spinner { animation: none; }\n"
+            "}"
+        ),
+    ),
+    "GC062": FixGuide(
+        steps=(
+            "Rimuovi qualsiasi script di mining dal codice e dagli asset.",
+            "Se non riconosci questo codice, trattalo come una compromissione "
+            "e indaga (storia git, dipendenze, CDN).",
+        ),
+        language="html",
+        bad=(
+            "<script src=\"https://coinhive.com/lib/coinhive.min.js\"></script>"
+        ),
+        good=("<!-- Nessuno script di mining -->"),
+    ),
+    "GC063": FixGuide(
+        steps=(
+            "Aumenta l'intervallo del timer.",
+            "Per animazioni usa requestAnimationFrame al posto di setInterval.",
+        ),
+        language="javascript",
+        bad=("setInterval(aggiorna, 16);"),
+        good=(
+            "function loop() {\n"
+            "  aggiorna();\n"
+            "  requestAnimationFrame(loop);\n"
+            "}\n"
+            "requestAnimationFrame(loop);"
+        ),
+    ),
+    "GC064": FixGuide(
+        steps=(
+            "Togli l'attributo autoplay.",
+            "Avvia la riproduzione su interazione e usa preload='none'.",
+        ),
+        language="html",
+        bad=("<video src=\"intro.mp4\" autoplay></video>"),
+        good=("<video src=\"intro.mp4\" controls preload=\"none\"></video>"),
+    ),
+    # ----------------------------- ASSETS --------------------------------- #
+    "GC070": FixGuide(
+        steps=(
+            "Ridimensiona l'immagine alla dimensione massima realmente usata.",
+            "Converti in un formato moderno (WebP/AVIF) e comprimi.",
+            "Aggiungi loading='lazy' agli <img> non critici.",
+        ),
+        language="text",
+        bad=("hero.png    4.2 MB  (PNG non compresso, 4000px)"),
+        good=("hero.webp   280 KB  (WebP, ridimensionato a 1600px)"),
+        note="Strumenti: cwebp, squoosh, sharp, imagemin.",
+    ),
+    "GC071": FixGuide(
+        steps=(
+            "Aggiungi loading='lazy' alle immagini non above-the-fold.",
+        ),
+        language="html",
+        bad=("<img src=\"foto.jpg\" alt=\"Foto\">"),
+        good=("<img src=\"foto.jpg\" alt=\"Foto\" loading=\"lazy\">"),
+    ),
+    "GC072": FixGuide(
+        steps=(
+            "Abilita minificazione e compressione (gzip/brotli) in build.",
+            "Usa il code splitting per ridurre il payload iniziale.",
+        ),
+        language="text",
+        bad=("app.js       1.8 MB  (sorgente non minificato)"),
+        good=("app.min.js   420 KB  (minificato + brotli, code-split)"),
+    ),
+    # ------------------------------ INFRA --------------------------------- #
+    "GC080": FixGuide(
+        steps=("Fissa una versione specifica dell'immagine base.",),
+        language="dockerfile",
+        bad=("FROM node:latest"),
+        good=("FROM node:20.11.1-slim"),
+    ),
+    "GC081": FixGuide(
+        steps=(
+            "Separa la fase di build da quella di runtime con 'AS'.",
+            "Copia nell'immagine finale solo gli artefatti necessari.",
+        ),
+        language="dockerfile",
+        bad=(
+            "FROM node:20\n"
+            "COPY . .\n"
+            "RUN npm ci && npm run build\n"
+            "CMD [\"node\", \"dist/server.js\"]"
+        ),
+        good=(
+            "FROM node:20 AS build\n"
+            "COPY . .\n"
+            "RUN npm ci && npm run build\n"
+            "\n"
+            "FROM node:20-slim\n"
+            "COPY --from=build /app/dist ./dist\n"
+            "CMD [\"node\", \"dist/server.js\"]"
+        ),
+    ),
+    "GC082": FixGuide(
+        steps=(
+            "Usa pip install --no-cache-dir.",
+            "Per apt usa --no-install-recommends e pulisci le liste nello stesso RUN.",
+        ),
+        language="dockerfile",
+        bad=(
+            "RUN pip install -r requirements.txt\n"
+            "RUN apt-get update && apt-get install -y curl"
+        ),
+        good=(
+            "RUN pip install --no-cache-dir -r requirements.txt\n"
+            "RUN apt-get update \\\n"
+            "    && apt-get install -y --no-install-recommends curl \\\n"
+            "    && rm -rf /var/lib/apt/lists/*"
+        ),
+    ),
+    "GC083": FixGuide(
+        steps=("Passa a una variante -slim/-alpine o a un'immagine distroless.",),
+        language="dockerfile",
+        bad=("FROM python:3.12"),
+        good=("FROM python:3.12-slim"),
+    ),
+    "GC084": FixGuide(
+        steps=(
+            "Usa COPY per copiare file locali.",
+            "Riserva ADD ai casi che richiedono download remoto o estrazione archivi.",
+        ),
+        language="dockerfile",
+        bad=("ADD app/ /srv/app/"),
+        good=("COPY app/ /srv/app/"),
+    ),
+    # ------------------------------- SCI ---------------------------------- #
+    "GC090": FixGuide(
+        steps=(
+            "Riduci la frequenza del job alla cadenza realmente necessaria.",
+            "Valuta un modello event-driven o uno scheduling carbon-aware.",
+        ),
+        language="yaml",
+        bad=("schedule: \"* * * * *\"        # ogni minuto"),
+        good=("schedule: \"*/15 * * * *\"     # ogni 15 minuti"),
+    ),
+    "GC091": FixGuide(
+        steps=(
+            "Usa 'unless-stopped'/'on-failure' dove possibile.",
+            "Adotta lo scale-to-zero (serverless, KEDA) per non tenere risorse "
+            "allocate quando il servizio è inattivo.",
+        ),
+        language="yaml",
+        bad=("services:\n  worker:\n    restart: always"),
+        good=("services:\n  worker:\n    restart: unless-stopped"),
+    ),
+    "GC092": FixGuide(
+        steps=(
+            "Abilita la cache per le risorse cacheabili (max-age/ETag).",
+            "Riserva 'no-store' ai soli contenuti sensibili.",
+        ),
+        language="text",
+        bad=("Cache-Control: no-store"),
+        good=("Cache-Control: public, max-age=3600"),
+    ),
+    "GC093": FixGuide(
+        steps=(
+            "Dimensiona le repliche sul carico reale.",
+            "Usa l'autoscaling orizzontale (HPA/KEDA) con scale-to-zero.",
+        ),
+        language="yaml",
+        bad=("spec:\n  replicas: 10"),
+        good=(
+            "# HorizontalPodAutoscaler\n"
+            "spec:\n"
+            "  minReplicas: 2\n"
+            "  maxReplicas: 10"
+        ),
+    ),
+}
 
 
 def rules_by_id(rules: Optional[List[Rule]] = None) -> Dict[str, Rule]:

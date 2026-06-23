@@ -27,6 +27,8 @@ come **gate di qualità in CI/CD**.
   ridurre i falsi positivi.
 - 📊 **KPI GreenIndex** (0–100) e **classe energetica A–G**, con scomposizione
   per categoria di impatto e per regola.
+- 🛠️ **Guida "come risolverlo"** per ogni segnalazione: passi operativi ed
+  esempio di codice *prima/dopo*, sia nel report sia nel catalogo `/rules`.
 - 🖥️ **CLI** con report a colori, export **JSON** e **HTML** autonomo.
 - 🌐 **Dashboard web** (Flask) per analizzare un percorso locale o un URL git.
 - ✅ **Gate per la CI**: `--min-score` fa fallire la build sotto soglia.

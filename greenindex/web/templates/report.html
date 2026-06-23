@@ -95,6 +95,30 @@
       </summary>
       <p class="rule-desc">{{ rule.description }}</p>
       <p class="rule-fix">💡 {{ rule.remediation }}</p>
+      {% set guide = rule.fix_guide %}
+      {% if guide %}
+      <div class="fix-guide">
+        <p class="fix-guide-title">🛠️ Come risolverlo</p>
+        {% if guide.steps %}
+        <ol class="fix-steps">
+          {% for step in guide.steps %}<li>{{ step }}</li>{% endfor %}
+        </ol>
+        {% endif %}
+        {% if guide.has_example %}
+        <div class="fix-example">
+          <div class="fix-col fix-bad">
+            <span class="fix-col-label">✗ Da evitare</span>
+            <pre><code>{{ guide.bad }}</code></pre>
+          </div>
+          <div class="fix-col fix-good">
+            <span class="fix-col-label">✓ Consigliato</span>
+            <pre><code>{{ guide.good }}</code></pre>
+          </div>
+        </div>
+        {% endif %}
+        {% if guide.note %}<p class="fix-note muted small">ℹ️ {{ guide.note }}</p>{% endif %}
+      </div>
+      {% endif %}
       <ul class="occurrences">
         {% for v in items[:25] %}
         <li>

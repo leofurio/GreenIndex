@@ -114,6 +114,30 @@ kg CO₂e   = kWh/anno · {{ "%.2f"|format(kg_co2_per_kwh) }}</code></pre>
       <h3>{{ rule.name }}</h3>
       <p>{{ rule.description }}</p>
       <p class="rule-fix"><strong>Rimedio:</strong> {{ rule.remediation }}</p>
+      {% set guide = rule.fix_guide %}
+      {% if guide %}
+      <details class="fix-guide">
+        <summary class="fix-guide-title">🛠️ Come risolverlo</summary>
+        {% if guide.steps %}
+        <ol class="fix-steps">
+          {% for step in guide.steps %}<li>{{ step }}</li>{% endfor %}
+        </ol>
+        {% endif %}
+        {% if guide.has_example %}
+        <div class="fix-example">
+          <div class="fix-col fix-bad">
+            <span class="fix-col-label">✗ Da evitare</span>
+            <pre><code>{{ guide.bad }}</code></pre>
+          </div>
+          <div class="fix-col fix-good">
+            <span class="fix-col-label">✓ Consigliato</span>
+            <pre><code>{{ guide.good }}</code></pre>
+          </div>
+        </div>
+        {% endif %}
+        {% if guide.note %}<p class="fix-note muted small">ℹ️ {{ guide.note }}</p>{% endif %}
+      </details>
+      {% endif %}
       <p class="small muted">
         Detector: <code>{{ rule.detector }}</code>
         {% if rule.languages %} · Linguaggi: {{ rule.languages|join(", ") }}{% endif %}

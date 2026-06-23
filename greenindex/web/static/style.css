@@ -164,6 +164,38 @@ code { background: #eef2ee; padding: 1px 6px; border-radius: 5px; font-size: .85
 .loc { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; color: var(--accent); margin-right: 10px; }
 .snippet { display: inline-block; margin-top: 2px; background: #f4f6f3; color: #44524a; }
 
+/* "Come risolverlo": passi + esempio prima/dopo */
+.fix-guide {
+  margin: 4px 0 12px;
+  padding: 12px 14px;
+  background: #f3faf3;
+  border: 1px solid #d7ecd8;
+  border-radius: 10px;
+}
+.fix-guide-title { margin: 0 0 8px; font-weight: 700; color: var(--green-dark); }
+details.fix-guide { padding: 0; background: transparent; border: 0; }
+details.fix-guide > summary { cursor: pointer; list-style: none; color: var(--green-dark); font-weight: 700; margin-bottom: 8px; }
+details.fix-guide > summary::-webkit-details-marker { display: none; }
+details.fix-guide[open] { padding: 12px 14px; background: #f3faf3; border: 1px solid #d7ecd8; border-radius: 10px; }
+.fix-steps { margin: 0 0 10px; padding-left: 20px; }
+.fix-steps li { margin: 2px 0; }
+.fix-example { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.fix-col { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+.fix-col-label { display: block; padding: 5px 10px; font-size: .78rem; font-weight: 700; }
+.fix-bad .fix-col-label { background: #fdecea; color: #b71c1c; }
+.fix-good .fix-col-label { background: #e7f4e8; color: var(--green-dark); }
+.fix-example pre {
+  margin: 0; padding: 10px 12px; overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem; line-height: 1.45; background: #fbfdfb;
+}
+.fix-example pre code { background: transparent; padding: 0; font-size: inherit; }
+.fix-note { margin: 8px 0 0; }
+
+@media (max-width: 720px) {
+  .fix-example { grid-template-columns: 1fr; }
+}
+
 /* Severity badges */
 .sev { font-size: .72rem; font-weight: 700; padding: 2px 8px; border-radius: 20px; color: #fff; text-transform: uppercase; letter-spacing: .03em; }
 .sev-1 { background: #9e9e9e; } .sev-2 { background: #f9a825; }
